@@ -1,0 +1,28 @@
+{
+  "title": "The Weather Office",
+  "author": "Thomas Reid",
+  "lang": "en",
+  "chapters": [
+    {
+      "title": "CHAPTER ONE",
+      "blocks": [
+        "Nobody in Pembury ever asked why the weather office stood at the end of the pier. It had always been there, a white wooden hut with a brass barometer bolted to the door and a sign that said, simply, “Forecasts Within.” Mr. Abernathy opened it every morning at seven and closed it every evening at six, and in between he told people what the sky intended to do.",
+        "He was never wrong. That was the first strange thing about him, although it took the town a surprisingly long time to notice. Fishermen planned their days around his chalkboard; brides consulted him before choosing a date; the vicar, who disapproved of almost everything, was seen more than once lingering by the window to read the afternoon outlook.",
+        "“It’s a matter of listening,” Mr. Abernathy would say, if anybody asked. “The weather isn’t shy. It’s simply polite. It waits to be asked.”",
+        "Lucy Hargreaves was eleven when she decided to find out what he meant. She had a notebook, a pencil, and the kind of stubbornness that her mother called a gift and her teachers called something else entirely."
+      ]
+    },
+    {
+      "title": "CHAPTER TWO",
+      "blocks": [
+        "The first week, she simply watched. She sat on the bench opposite the hut with her notebook open on her knees and wrote down everything Mr. Abernathy did: when he tapped the barometer, when he looked at the gulls, when he licked a finger and held it up into the wind — which, she noticed, he did far less often than people assumed.",
+        "The second week, he came out and sat beside her.",
+        "“You’re doing it wrong,” he said, not unkindly. “You’re watching me. You should be watching the sea.”",
+        "<scene>",
+        "By the end of the summer, Lucy could tell a fog from a mist by the way the light sat on the water. She knew that the gulls flew inland a full hour before a squall, and that the old harbour wall sweated before a thunderstorm. She was right about the weather perhaps half the time, which Mr. Abernathy said was a great deal better than the BBC.",
+        "On the last day of August, he gave her the key."
+      ]
+    }
+  ],
+  "forbidden": []
+}

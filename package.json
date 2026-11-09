@@ -1,0 +1,26 @@
+{
+  "name": "manuscript-reader",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Convert manuscripts (DOCX, PDF, TXT) to clean EPUB 3, entirely in the browser.",
+  "type": "module",
+  "license": "MIT",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "vendor": "node scripts/vendor.mjs",
+    "fixtures": "python3 test/fixtures/src/make_fixtures.py",
+    "test": "node --test test/unit/ test/quality.test.js",
+    "test:e2e": "playwright test",
+    "epubcheck": "bash scripts/epubcheck.sh",
+    "serve": "node scripts/serve.mjs",
+    "try": "node scripts/try.mjs"
+  },
+  "dependencies": {
+    "fflate": "0.8.3",
+    "pdfjs-dist": "6.5.438"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.65.0",
+    "mammoth": "1.13.0"
+  }
+}
