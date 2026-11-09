@@ -221,7 +221,9 @@ export function stripFurniture(pagesLines, stats) {
   const removed = [];
   for (const l of candidates) {
     if (isSceneBreak(l.text)) continue;
-    const repeated = counts.get(keyOf(l.text)).size >= minRepeat;
+    // Running headers do not end like sentences; this protects body lines
+    // that happen to repeat at the top of pages (e.g. a dialogue line "—No.").
+    const repeated = counts.get(keyOf(l.text)).size >= minRepeat && !/[.!?…]["”»’)]?$/.test(l.text);
     if (repeated || PAGE_NUMBER_RE.test(l.text)) {
       furniture.add(l);
       removed.push(l.text);
@@ -234,7 +236,8 @@ export function stripFurniture(pagesLines, stats) {
   for (const pl of pagesLines) {
     const lines = pl.filter((l) => !furniture.has(l)).sort((a, b) => a.y - b.y);
     let k = lines.length;
-    while (k > 0 && lines[k - 1].fs < stats.bodyFs * 0.88 && lines[k - 1].y > lines[0].pageH * 0.5) k--;
+    const small = (l) => l.fs < stats.bodyFs * 0.95 && l.fs <= stats.bodyFs - 0.5;
+    while (k > 0 && small(lines[k - 1]) && lines[k - 1].y > lines[0].pageH * 0.5) k--;
     const area = lines.slice(k);
     const startsNote = (l) => /^\d{1,3}\b/.test(l.text) || (l.runs[0]?.sup && /^\d{1,3}$/.test(l.runs[0].t.trim()));
     if (area.length && startsNote(area[0]) && k > 0) {

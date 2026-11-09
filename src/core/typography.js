@@ -91,6 +91,17 @@ export function normalizeRuns(runs, lang) {
     r.t = r.t.replace(/[  ]+$/, '');
     if (r.t.length) break;
   }
+  // No space before , and . (and ; : ! ? except in French), inside or across runs.
+  const punct = lang === 'fr' ? /^(?:,|\.(?!\.))/ : /^(?:[,;:!?]|\.(?!\.))/;
+  const inner = lang === 'fr' ? / +(,|\.(?!\.))/g : / +([,;:!?]|\.(?!\.))/g;
+  let prevText = null;
+  for (const r of rs) {
+    if (r.t === undefined) { prevText = null; continue; }
+    r.t = r.t.replace(inner, '$1');
+    if (prevText && punct.test(r.t)) prevText.t = prevText.t.replace(/ +$/, '');
+    if (prevText && / $/.test(prevText.t) && /^ /.test(r.t)) r.t = r.t.replace(/^ +/, '');
+    prevText = r;
+  }
   // a space directly before a note reference is dropped ("palabra ¹" -> "palabra¹")
   for (let k = 1; k < rs.length; k++) {
     if (rs[k].note !== undefined && rs[k - 1].t !== undefined) rs[k - 1].t = rs[k - 1].t.replace(/ +$/, '');

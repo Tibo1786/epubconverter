@@ -1,0 +1,48 @@
+{
+  "title": "El far de les col·leccions",
+  "author": "Jordi Pujol i Serra",
+  "lang": "ca",
+  "chapters": [
+    {
+      "title": "Capítol primer. La tramuntana",
+      "blocks": [
+        "Feia tres dies que bufava la tramuntana i el poble semblava haver-se encongit sobre si mateix. Les barques estaven amarrades amb dobles caps, les finestres tancades amb balda i els gats havien desaparegut, com fan sempre que el vent decideix que el món li pertany.",
+        "L’Anna pujava cada matí al far amb un cistell de pa, formatge i una ampolla de vi negre. El vell Miquel l’esperava a la porta, amb la gorra calada fins a les celles i aquell somriure torçat que feia servir per dissimular l’alegria.",
+        "—Avui no hi ha col·lecció —va dir, assenyalant el mar embravit—. Amb aquest vent, l’aigua no porta res que valgui la pena.",
+        "Miquel col·leccionava objectes que el mar retornava: ampolles amb missatges il·legibles, fragments de vaixells, una nina de porcellana sense cap, monedes rovellades d’imperis oblidats. Els guardava en vitrines de fusta al primer pis del far, etiquetats amb una cal·ligrafia minuciosa i una paciència il·limitada.",
+        "L’Anna havia crescut entre aquelles vitrines. Coneixia la història de cada objecte, o almenys la història que en Miquel s’havia inventat, perquè ell sostenia que un objecte sense història no és més que una cosa, i que les coses no s’han de col·leccionar mai.",
+        "<scene>",
+        "Aquella tarda, quan el vent va amainar una mica, van baixar junts a la cala. Entre les algues i els troncs blanquejats hi havia una caixa metàl·lica, petita, segellada amb cera vermella. A la tapa, gravades amb lletres angleses, s’hi llegien dues paraules: *for Michael*.",
+        "En Miquel es va quedar molt quiet. Després va recollir la caixa amb una delicadesa que l’Anna no li havia vist mai, com si dugués un ocell ferit."
+      ]
+    },
+    {
+      "title": "Capítol segon. La carta",
+      "blocks": [
+        "Dins la caixa hi havia una carta escrita en anglès, amb una lletra inclinada i elegant. En Miquel la va llegir en silenci i després la va passar a l’Anna, que havia estudiat anglès a l’institut i el parlava amb una confiança desproporcionada."
+      ]
+    },
+    {
+      "title": "Letter from Brighton",
+      "blocks": [
+        "Dear Michael, I do not know whether this letter will ever reach you, or whether the sea will keep it for itself, as it has kept so many things that belonged to us. I am writing from the same window where we used to watch the ferries leave for France, and I am thinking of the summer we spent pretending that the war was something happening to other people.",
+        "You told me once that the sea never steals anything; it only borrows things for a while and gives them back when we have learned to deserve them. I did not believe you then. I am trying very hard to believe you now.",
+        "I have kept the compass you gave me. It still points north, although I have long since stopped knowing where north is. If this box finds its way to your lighthouse, please know that I never stopped waiting, and that I forgave you a long time ago for the things neither of us had the courage to say.",
+        "Yours, always, Eleanor."
+      ],
+      "lang": "en"
+    },
+    {
+      "title": "Capítol tercer. El retorn",
+      "blocks": [
+        "En Miquel no va dir res durant molta estona. Mirava per la finestra rodona del far, cap al nord, on el mar es confonia amb el cel en una línia grisa i indecisa.",
+        "—Era a Brighton, l’any cinquanta-dos —va explicar finalment—. Jo hi treballava en un vaixell de càrrega. Ella venia flors al port. Vaig marxar sense acomiadar-me, perquè vaig pensar que era més fàcil així. Em vaig equivocar, és clar. Un s’equivoca sempre que pensa que una cosa difícil serà més fàcil si no la fa.",
+        "L’Anna va col·locar la carta a la vitrina principal, al costat de la brúixola trencada que en Miquel guardava des de sempre i que mai no havia volgut explicar. Ara ja tenia història. Ara ja no era una cosa.",
+        "Aquella nit, per primera vegada en molts anys, en Miquel va encendre el llum del far tot i que ja no navegava ningú per aquella costa. La llum girava lentament sobre el mar, constant i paral·lela a l’horitzó, com una pregunta que algú fa sense esperar resposta."
+      ]
+    }
+  ],
+  "forbidden": [
+    "Jordi Pujol i Serra"
+  ]
+}

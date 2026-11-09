@@ -41,10 +41,10 @@ function resolveBlanks(blocks) {
   let seenP = false;
   for (const b of blocks) {
     if (b.type === 'blank') { blanks++; continue; }
-    if (b.type === 'p') {
+    if (b.type === 'p' && !b.heading) {
       if (seenP) gaps.push(blanks);
       seenP = true;
-    }
+    } else seenP = false;
     blanks = 0;
   }
   const withBlank = gaps.filter((g) => g >= 1).length;
@@ -53,7 +53,7 @@ function resolveBlanks(blocks) {
   // Authors who separate every paragraph with blank lines: 2+ = scene break
   // (only if that is rare).
   let threshold;
-  if (ratio < 0.15) threshold = 1;
+  if (ratio < 0.35) threshold = 1;
   else {
     const multi = gaps.filter((g) => g >= 2).length;
     threshold = multi / Math.max(1, gaps.length) < 0.15 ? 2 : Infinity;
@@ -138,6 +138,10 @@ export function buildBook(rawBlocks, meta = {}, notes = new Map()) {
         const nk = headingKind(nt);
         if (nk === 'chapter' || nk === 'part' || (nk === 'number' && n.heading)) break;
         if (!isSubtitleCandidate(n, true)) break;
+        const chapterish = kind === 'chapter' || kind === 'number' || kind === 'part';
+        const nestedStyle = n.heading && b.heading.source === 'style' && n.heading.source === 'style' && n.heading.level > b.heading.level;
+        const sizeStep = n.heading && b.heading.source === 'format' && (n.relSize ?? 1) < (b.relSize ?? 1) - 0.1 && chapterish;
+        if (!chapterish && !nestedStyle && !sizeStep) break;
         // A wrapped long heading (same formatting) joins with a space.
         const sameLook = n.heading && b.heading && n.heading.source === b.heading.source && n.wrapOf === b;
         title = sameLook ? `${title} ${nt}` : joinTitle(title, nt);
@@ -156,57 +160,62 @@ export function buildBook(rawBlocks, meta = {}, notes = new Map()) {
   const metaOut = { title: meta.title || null, author: meta.author || null, lang };
   const isChapterHeading = (b) => b.type === 'h' && (b.kind === 'chapter' || b.kind === 'part' || b.kind === 'number');
   let first = blocks.findIndex((b) => b.type === 'h' && !b.titleStyle);
-  // If the first "heading" is really the book title (title page), skip it.
-  if (first >= 0 && !isChapterHeading(blocks[first])) {
+  const byRe = /^(?:by|por|de|per|par|von)\s+(\p{Lu}.+)$/iu;
+  // contact / submission lines of a manuscript title page (short lines only)
+  const contactRe = /@|https?:|www\.|\+?\d[\d\s().-]{7,}\d|\d[\d.,\s]*\s*(?:palabras|words|mots|paraules)\b|^(?:novela|novel|roman|novel·la|manuscrito|manuscript|manuscrit|agente|agent|agencia|agency)\b|copyright|©/iu;
+  const looksLikeName = (t) => t.length <= 60 && t.split(/\s+/).length <= 6 && /^\p{Lu}/u.test(t) && !/[.!?:;]$/.test(t) && !/\d/.test(t);
+  // Headings on a typed title page (book title, author) are not chapters.
+  while (first >= 0 && !isChapterHeading(blocks[first])) {
     const h = blocks[first];
     const nextH = blocks.findIndex((b, i) => i > first && b.type === 'h');
-    const between = blocks.slice(first + 1, nextH < 0 ? blocks.length : nextH);
+    if (nextH < 0) break;
+    const between = blocks.slice(first + 1, nextH);
     const shortBetween = between.every((b) => b.type !== 'p' || textOf(b).length <= 150) &&
       between.reduce((a, b) => a + textOf(b).length, 0) <= 400;
-    const isTitle = (metaOut.title && norm(h.title) === norm(metaOut.title)) ||
-      (nextH >= 0 && shortBetween && blocks.slice(nextH).some(isChapterHeading));
-    if (isTitle && nextH >= 0) {
-      if (!metaOut.title) metaOut.title = h.title;
-      h.frontMatter = true;
-      first = nextH;
-    }
+    const n = norm(h.title);
+    const chaptersFollow = blocks.slice(nextH).some(isChapterHeading);
+    const isTitle = (metaOut.title && n === norm(metaOut.title)) || (!metaOut.title && shortBetween && chaptersFollow);
+    const isAuthor = (metaOut.author && n === norm(metaOut.author)) || (!metaOut.author && metaOut.title && shortBetween && chaptersFollow && looksLikeName(h.title));
+    if (!isTitle && !isAuthor) break;
+    if (isTitle && !metaOut.title) metaOut.title = h.title;
+    if (isAuthor && !metaOut.author) metaOut.author = h.title;
+    h.frontMatter = true;
+    first = nextH;
   }
   if (first < 0) first = blocks.length;
   const leading = blocks.slice(0, first);
-  const leadingP = leading.filter((b) => b.type === 'p');
-  const leadingText = leadingP.reduce((a, b) => a + textOf(b).length, 0);
-  const allShort = leadingP.every((b) => textOf(b).length <= 150);
-  const byRe = /^(?:by|por|de|per|par|von)\s+(.+)$/i;
-  let opening = [];
-  if (first < blocks.length && allShort && leadingText <= 600) {
-    // pure front matter: harvest title/author, drop it
-    const lines = [...leading.filter((b) => b.type === 'h' && b.frontMatter).map((b) => b.title), ...leadingP.map(textOf)];
-    const titleBlock = leadingP.find((b) => b.titleStyle);
-    if (!metaOut.title && titleBlock) metaOut.title = textOf(titleBlock);
-    if (!metaOut.title && lines[0]) metaOut.title = lines[0];
-    if (!metaOut.author) {
-      const by = lines.map((l) => l.match(byRe)).find(Boolean);
-      if (by) metaOut.author = by[1].trim();
-      else {
-        const cand = lines.find((l) => l !== metaOut.title && l.split(/\s+/).length <= 5 && /^\p{Lu}/u.test(l) && !/@|\d{3}/.test(l));
-        if (cand) metaOut.author = cand;
-      }
-    }
-  } else {
-    // There is real text before the first heading (or no headings at all):
-    // drop only lines that repeat the title/author.
-    let k = 0;
-    const dropRe = (t) => {
-      const n = norm(t);
-      return (metaOut.title && n === norm(metaOut.title)) || (metaOut.author && (n === norm(metaOut.author) || n === norm(`by ${metaOut.author}`) || byRe.test(t) && norm(t.match(byRe)[1]) === norm(metaOut.author)));
-    };
-    while (k < leading.length && (leading[k].type !== 'p' || (textOf(leading[k]).length < 150 && (dropRe(textOf(leading[k])) || leading[k].titleStyle)))) {
-      if (leading[k].type === 'p' && leading[k].titleStyle && !metaOut.title) metaOut.title = textOf(leading[k]);
-      if (leading[k].type === 'h' && leading[k].frontMatter) { /* skip */ }
-      k++;
-    }
-    opening = leading.slice(k).filter((b) => b.type === 'p' || b.type === 'scene');
+  let k = 0;
+  let lastDropped = null;
+  while (k < leading.length) {
+    const b = leading[k];
+    if (b.type === 'h' && b.frontMatter) { lastDropped = 'title'; k++; continue; }
+    if (b.type !== 'p') { k++; continue; }
+    const t = textOf(b);
+    if (t.length > 120) break;
+    const n = norm(t);
+    const by = t.match(byRe);
+    if (b.titleStyle) {
+      if (!metaOut.title) metaOut.title = t;
+      lastDropped = 'title';
+    } else if (metaOut.title && n === norm(metaOut.title)) {
+      lastDropped = 'title';
+    } else if (metaOut.author && (n === norm(metaOut.author) || (by && norm(by[1]) === norm(metaOut.author)))) {
+      lastDropped = 'author';
+    } else if (by && looksLikeName(by[1])) {
+      if (!metaOut.author) metaOut.author = by[1].trim();
+      lastDropped = 'author';
+    } else if (!metaOut.title && k === 0 && t.length <= 80 && !SENTENCE_END_RE.test(t) && leading.length > 1) {
+      metaOut.title = t;
+      lastDropped = 'title';
+    } else if (lastDropped === 'title' && !metaOut.author && looksLikeName(t)) {
+      metaOut.author = t;
+      lastDropped = 'author';
+    } else if (t.length <= 80 && contactRe.test(t)) {
+      lastDropped = 'contact';
+    } else break;
+    k++;
   }
+  const opening = leading.slice(k).filter((b) => b.type === 'p' || b.type === 'scene');
 
   // 5. chapters
   const hasParts = blocks.some((b) => b.type === 'h' && b.kind === 'part');
@@ -242,7 +251,7 @@ export function buildBook(rawBlocks, meta = {}, notes = new Map()) {
   // 6. languages per chapter / paragraph
   for (const c of finalChapters) {
     const text = c.blocks.filter((b) => b.type === 'p').map((b) => runsText(b.runs)).join(' ');
-    if (text.length >= 300) {
+    if (text.length >= 150) {
       const d = detectLanguage(text);
       if (d.lang && d.lang !== lang && d.confidence > 0.3) c.lang = d.lang;
     }

@@ -256,7 +256,7 @@ def add_footnote_ref(paragraph):
     r._r.append(ref)
 
 
-def build_docx(book, path, *, variant):
+def build_docx(book, path, *, variant, layout="manuscript"):
     """variant 'full': the DOCX fixture (tracked changes, footnote, soft hyphen,
     style-inherited italics). variant 'pdf': same text with all changes
     accepted and soft hyphens in long words, to be exported to PDF."""
@@ -269,10 +269,20 @@ def build_docx(book, path, *, variant):
     lang.set(qn("w:val"), {"es": "es-ES", "ca": "ca-ES", "en": "en-GB", "fr": "fr-FR"}[book["lang"]])
     rpr.append(lang)
     pf = st.paragraph_format
-    pf.line_spacing_rule = WD_LINE_SPACING.DOUBLE
-    pf.first_line_indent = Cm(1.25)
-    pf.space_after = Pt(0)
-    pf.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+    if layout == "block":
+        # Another common habit: 1.5 spacing, ragged right, no indent,
+        # space between paragraphs, a sans font.
+        st.font.name = "Carlito"
+        st.font.size = Pt(11)
+        pf.line_spacing = 1.5
+        pf.first_line_indent = Cm(0)
+        pf.space_after = Pt(10)
+        pf.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    else:
+        pf.line_spacing_rule = WD_LINE_SPACING.DOUBLE
+        pf.first_line_indent = Cm(1.25)
+        pf.space_after = Pt(0)
+        pf.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
     for hn, size in (("Heading 1", 20), ("Heading 2", 14)):
         h = doc.styles[hn]
         h.font.name = "Times New Roman"
@@ -295,6 +305,17 @@ def build_docx(book, path, *, variant):
     sec.left_margin = sec.right_margin = Cm(2.5)
     sec.top_margin = sec.bottom_margin = Cm(2.5)
     sec.different_first_page_header_footer = True
+    if layout == "block":
+        # single header: "Title — Author    Página N de M", no footer
+        hp = sec.header.paragraphs[0]
+        hp.text = f"{book['title']} — {book['author']}\tPágina "
+        add_field(hp, "PAGE")
+        hp.add_run(" de ")
+        add_field(hp, "NUMPAGES")
+        hp.runs[0].italic = True
+        cp = doc.core_properties
+        cp.title, cp.author = book["title"], book["author"]
+        return _body(doc, book, path, variant)
     doc.settings.odd_and_even_pages_header_footer = True
     hp = sec.header.paragraphs[0]
     hp.text = book["title"]
@@ -311,7 +332,10 @@ def build_docx(book, path, *, variant):
 
     cp = doc.core_properties
     cp.title, cp.author = book["title"], book["author"]
+    return _body(doc, book, path, variant)
 
+
+def _body(doc, book, path, variant):
     # Front matter, as typed in many manuscripts.
     t = doc.add_paragraph(book["title"], style="Title")
     t.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -617,10 +641,23 @@ def main():
                expected_for(es, {"notes": [fn["text"]],
                                  "forbidden": ["Marta Vidal", "La casa de los relojes"]}))
 
+    # 1b. Same novel, another layout habit (block paragraphs, ragged right)
+    pdf_src = os.path.join(tmp, "novel-es-block.docx")
+    build_docx(es, pdf_src, variant="pdf", layout="block")
+    soffice_pdf(pdf_src, os.path.join(OUT, "novel-es-block.pdf"))
+    write_json("novel-es-block.pdf.expected.json",
+               expected_for(es, {"notes": [fn["text"]],
+                                 "forbidden": ["Marta Vidal", "Página"]}))
+
     # 2. Bilingual Catalan/English: DOCX and a hand-typeset PDF
     ca = corpus.BILINGUAL_CA_EN
     build_docx(ca, os.path.join(OUT, "bilingual-ca-en.docx"), variant="full")
     write_json("bilingual-ca-en.docx.expected.json", expected_for(ca))
+    pdf_src = os.path.join(tmp, "bilingual-ca-en-lo.docx")
+    build_docx(ca, pdf_src, variant="pdf")
+    soffice_pdf(pdf_src, os.path.join(OUT, "bilingual-ca-en-lo.pdf"))
+    write_json("bilingual-ca-en-lo.pdf.expected.json",
+               expected_for(ca, {"forbidden": ["Jordi Pujol i Serra"]}))
     typeset_pdf(ca, os.path.join(OUT, "bilingual-ca-en.pdf"), style="ca")
     write_json("bilingual-ca-en.pdf.expected.json",
                expected_for(ca, {"forbidden": ["JORDI PUJOL", "El far de les col·leccions"]}))

@@ -327,7 +327,8 @@ export function readDocx(bytes) {
       styleName: st.name,
       pageBreakBefore: !!pp.pageBreakBefore || pendingPageBreak,
     };
-    if (st.headingLevel && st.headingLevel <= 3) block.heading = { level: st.headingLevel, source: 'style' };
+    const level = ppr.outline !== undefined && ppr.outline < 9 ? ppr.outline + 1 : st.headingLevel;
+    if (level && level <= 3) block.heading = { level, source: 'style' };
     if (/^(title|t[ií]tulo|t[ií]tol|titre)$/i.test(st.name)) block.titleStyle = true;
     if (/^(subtitle|subt[ií]tulo|subt[ií]tol|sous-titre)$/i.test(st.name)) block.subtitleStyle = true;
     pendingPageBreak = rc.pageBreak && text.trim() === '' ? true : false;
