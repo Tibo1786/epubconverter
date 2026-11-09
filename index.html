@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!--
+  Privacy, enforced by the browser: this page may load code only from its own
+  origin and may not open ANY network connection (connect-src 'none'), so a
+  manuscript you open here cannot be sent anywhere. View source to verify.
+-->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; worker-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; manifest-src 'self'; connect-src 'none'; form-action 'none'; base-uri 'none'; object-src 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Turn a manuscript (Word, PDF or text) into a clean EPUB for Kindle, Kobo or Apple Books. Everything happens on your device.">
+<meta name="theme-color" content="#7a2e1f">
+<title>Manuscript Reader</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="stylesheet" href="app.css">
+<script type="module" src="src/ui/app.js"></script>
+</head>
+<body>
+<header class="top">
+  <h1>Manuscript Reader</h1>
+  <p class="tagline">Turn a manuscript into a clean EPUB for your Kindle, Kobo or phone.</p>
+  <p class="privacy-badge" id="privacy-badge"><span aria-hidden="true">🔒</span> Your file never leaves this device</p>
+</header>
+
+<main>
+  <section id="pick" class="card">
+    <label class="drop" id="drop">
+      <input type="file" id="file" accept=".docx,.pdf,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain">
+      <span class="drop-title">Choose a manuscript</span>
+      <span class="drop-sub">Word (.docx), PDF or plain text, or drop it here</span>
+    </label>
+    <p id="status" class="status" role="status" aria-live="polite"></p>
+  </section>
+
+  <section id="result" class="card" hidden>
+    <div id="error" class="error" role="alert" hidden></div>
+    <form id="meta" autocomplete="off">
+      <div class="field">
+        <label for="title">Title</label>
+        <input id="title" name="title" type="text" required>
+      </div>
+      <div class="field">
+        <label for="author">Author</label>
+        <input id="author" name="author" type="text">
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="lang">Language</label>
+          <select id="lang" name="lang">
+            <option value="es">Español</option>
+            <option value="ca">Català</option>
+            <option value="en">English</option>
+            <option value="fr">Français</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="received">Received on</label>
+          <input id="received" name="received" type="date">
+        </div>
+      </div>
+      <label class="check"><input id="confidential" type="checkbox" checked> Add “Confidential submission, received …” to the title page</label>
+    </form>
+
+    <div class="summary" id="summary"></div>
+    <ul class="warnings" id="warnings"></ul>
+    <details class="toc" id="toc-box">
+      <summary>Chapters</summary>
+      <ol id="toc"></ol>
+    </details>
+    <details class="preview">
+      <summary>Preview the beginning</summary>
+      <div id="preview" class="preview-text"></div>
+    </details>
+
+    <div class="actions">
+      <button type="button" id="download" class="primary">Download EPUB</button>
+      <button type="button" id="share" class="secondary" hidden>Send to Kindle app…</button>
+      <button type="button" id="again" class="link">Convert another file</button>
+    </div>
+  </section>
+
+  <section class="card help">
+    <h2>Reading it on a Kindle</h2>
+    <ul>
+      <li><strong>On a phone:</strong> tap <em>Send to Kindle app…</em> and pick the Kindle app. The book appears on all your Kindles.</li>
+      <li><strong>By email:</strong> send the EPUB to your Kindle address (Amazon › Devices › Preferences › Personal Document Settings).</li>
+      <li><strong>On a computer:</strong> drop the EPUB on <em>amazon.com/sendtokindle</em>, or open it in Calibre and send it by USB.</li>
+      <li>Kobo and Apple Books open the EPUB directly.</li>
+    </ul>
+    <p class="fine">Note: the three Send to Kindle routes give Amazon a copy, kept in your Kindle library. For the strictest confidentiality, copy the file over USB (Calibre) instead.</p>
+    <p class="fine">How privacy is guaranteed: the page’s security policy forbids every network connection, so the converter physically cannot upload your file. It also works offline once loaded. <a href="https://github.com/Tibo1786/epubconverter#privacy" rel="noopener noreferrer">Details and source code</a>.</p>
+  </section>
+</main>
+</body>
+</html>

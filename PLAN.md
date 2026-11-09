@@ -113,3 +113,13 @@ No OCR. No multi-column PDFs (rare for manuscripts; a warning is shown). Images 
 ## 9. Phase 2 (README only)
 
 The "reading room", which needs a Supabase EU backend.
+
+## 10. Changes made during implementation
+
+- **PDF in a worker:** pdf.js already parses in its own Web Worker. Our reflow pass is fast (~100 ms for a novel), so it runs on the main thread rather than in a second worker.
+- **Bold and italic in PDFs:** pdf.js only exposes real font names after an operator-list pass. That pass runs only on pages that introduce a new font, so the cost stays small.
+- **Extra fixtures:**
+  - the Spanish novel in a second layout (block paragraphs, ragged right, "Página N de M" header)
+  - the Catalan text exported through LibreOffice
+- **Download file names are ASCII** (accents removed). Some browsers reject accented names for downloads. The real title stays inside the EPUB.
+- **The front matter rule is more conservative than planned.** Only title, author, by-line and contact lines are dropped. Any other text before chapter 1 is kept as an opening section.
