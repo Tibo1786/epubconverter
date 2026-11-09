@@ -59,3 +59,22 @@ for (const name of ['plain-titles-en.pdf', 'novel-es.docx']) {
     for (const u of requests) expect(u.startsWith('blob:') || u.startsWith(baseURL), u).toBe(true);
   });
 }
+
+test('chapter titles can be edited or numbered, and the EPUB and reader use them', async ({ page }) => {
+  await page.goto('/');
+  await page.setInputFiles('#file', join(fixtures, 'novel-es.docx'));
+  await page.click('#toc-box summary');
+  await page.click('#number-titles');
+  await expect(page.locator('#toc li')).toHaveText(['Capítulo 1', 'Capítulo 2', 'Capítulo 3', 'Epílogo']);
+  await page.click('#edit-titles');
+  await page.locator('#toc input').nth(2).fill('El sótano');
+  await page.click('#edit-titles');
+  await expect(page.locator('#toc li').nth(2)).toHaveText('El sótano');
+  const [download] = await Promise.all([page.waitForEvent('download'), page.click('#download')]);
+  const files = unzipSync(new Uint8Array(readFileSync(await download.path())));
+  const nav = strFromU8(files['OEBPS/nav.xhtml']);
+  expect(nav).toContain('>Capítulo 2</a>');
+  expect(nav).toContain('>El sótano</a>');
+  await page.click('#read');
+  await expect(page.locator('.r-chapter-title')).toHaveText('Capítulo 1');
+});

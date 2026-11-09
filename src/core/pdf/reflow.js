@@ -37,10 +37,66 @@ function percentile(values, p) {
 
 // ------------------------------------------------------------- 1. lines ----
 
+/**
+ * Text drawn on top of the same text is a copy: transparency flattening
+ * (e.g. under a diagonal watermark), shadows and "fake bold" all redraw
+ * pieces of a line at the exact same place. Keep the widest item and drop
+ * any item mostly covered by already kept items on the same baseline.
+ */
+export function dropOverlaps(items) {
+  const byWidth = [...items].sort((a, b) => b.w - a.w);
+  const kept = [];
+  const rows = new Map();
+  for (const it of byWidth) {
+    if (it.w > 0 && it.str.trim()) {
+      const key = Math.round(it.y);
+      let covered = 0;
+      for (const k of [key - 1, key, key + 1]) {
+        for (const o of rows.get(k) ?? []) {
+          if (Math.abs(o.fs - it.fs) > 0.5 || Math.abs(o.y - it.y) > 0.2 * it.fs) continue;
+          const overlap = Math.min(o.x + o.w, it.x + it.w) - Math.max(o.x, it.x);
+          if (overlap > 0) covered += overlap;
+        }
+      }
+      if (covered >= 0.6 * it.w) continue;
+      if (!rows.has(key)) rows.set(key, []);
+      rows.get(key).push(it);
+    }
+    kept.push(it);
+  }
+  return kept;
+}
+
+/**
+ * A drop cap: one or two big letters whose height spans two or more body
+ * lines to their right. Returned separately so they can be glued to the
+ * first of those lines instead of disturbing line grouping.
+ */
+function splitDropCaps(items) {
+  const chars = new Map();
+  for (const it of items) chars.set(round(it.fs), (chars.get(round(it.fs)) ?? 0) + it.str.trim().length);
+  let body = null, best = -1;
+  for (const [k, n] of chars) if (n > best) { body = k; best = n; }
+  if (!body) return { items, caps: [] };
+  const caps = [];
+  const rest = [];
+  for (const it of items) {
+    const t = it.str.trim();
+    if (t.length >= 1 && t.length <= 2 && /^\p{L}+$/u.test(t) && it.fs >= 2.2 * body) {
+      // body lines to the right, within the cap's height
+      const beside = new Set(items.filter((o) => o !== it && Math.abs(o.fs - body) < 0.6 && o.x >= it.x + it.w * 0.6 - 2 &&
+        o.y <= it.y + 0.3 * body && o.y >= it.y - it.fs * 0.85).map((o) => Math.round(o.y)));
+      if (beside.size >= 2) { caps.push(it); continue; }
+    }
+    rest.push(it);
+  }
+  return { items: rest, caps };
+}
+
 /** Group the items of one page into lines. */
 export function buildLines(page) {
-  const items = page.items
-    .filter((it) => it.str.length)
+  const { items: plain, caps } = splitDropCaps(dropOverlaps(page.items.filter((it) => it.str.length)));
+  const items = plain
     .map((it) => ({ ...it }))
     .sort((a, b) => a.y - b.y || a.x - b.x);
   const lines = [];
@@ -62,7 +118,21 @@ export function buildLines(page) {
     target.items.push(it);
     if (it.fs > target.fs && it.str.trim()) { target.fs = it.fs; target.y = it.y; }
   }
-  return lines.map((l) => finishLine(l, page)).filter((l) => l.text.length);
+  const out = lines.map((l) => finishLine(l, page)).filter((l) => l.text.length);
+  // glue each drop cap to the top line beside it ("M" + "argot")
+  for (const cap of caps) {
+    const beside = out.filter((l) => l.x0 >= cap.x + cap.w * 0.6 - 2 && l.y <= cap.y + 0.3 * l.fs && l.y >= cap.y - cap.fs * 0.85)
+      .sort((a, b) => a.y - b.y);
+    const line = beside[0];
+    if (!line) continue;
+    for (const l of beside) l.besideCap = true; // pushed right by the cap, not indented
+    const first = line.runs[0];
+    line.runs.unshift({ t: cap.str.trim(), ...(first?.i ? { i: true } : {}), ...(first?.b ? { b: true } : {}) });
+    line.text = cap.str.trim() + line.text;
+    line.x0 = Math.min(line.x0, cap.x);
+    line.dropCap = cap.str.trim();
+  }
+  return out;
 }
 
 function finishLine(l, page) {
@@ -154,8 +224,17 @@ export function docStats(lines) {
   const bigGaps = gaps.filter((d) => d > pitch * 1.25 && d < pitch * 2.6);
   const paraGap = bigGaps.length >= Math.max(3, gaps.length * 0.08) ? mode(bigGaps, 0.5) : null;
 
-  // margins per page (mirrored margins are common), with a global fallback
-  const leftAll = mode(body.map((l) => l.x0), 1);
+  // margins per page (mirrored margins are common), with a global fallback.
+  // The left margin is the leftmost COMMON line start: on a short page,
+  // indented starts (paragraphs, list items) can outnumber margin starts.
+  const leftEdge = (xs) => {
+    const h = new Map();
+    for (const x of xs) h.set(Math.round(x), (h.get(Math.round(x)) ?? 0) + 1);
+    const need = Math.max(2, Math.ceil(xs.length * 0.15));
+    const common = [...h].filter(([, n]) => n >= need).map(([k]) => k);
+    return common.length ? Math.min(...common) : mode(xs, 1);
+  };
+  const leftAll = leftEdge(body.map((l) => l.x0));
   const rightAll = percentile(body.map((l) => l.x1), 0.9);
   const perPage = new Map();
   const byPage = new Map();
@@ -166,7 +245,7 @@ export function docStats(lines) {
   const parity = { 0: { l: [], r: [] }, 1: { l: [], r: [] } };
   for (const [p, ls] of byPage) {
     if (ls.length >= 6) {
-      const left = mode(ls.map((l) => l.x0), 1);
+      const left = leftEdge(ls.map((l) => l.x0));
       const right = percentile(ls.map((l) => l.x1), 0.85);
       perPage.set(p, { left, right });
       parity[p % 2].l.push(left);
@@ -192,13 +271,14 @@ export function docStats(lines) {
 
 // ------------------------------------------- 3. headers, footers, notes ----
 
+const normKey = (t) => t.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^\p{L}\p{N}]+/gu, '');
 const keyOf = (t) => t.toLowerCase().replace(/\d+/g, '#').replace(/[ivxlcdm]+\b/g, (m) => (m.length <= 6 ? '#' : m)).replace(/\s+/g, '');
 
 /**
  * Remove running headers/footers and page numbers; extract footnotes.
  * Returns {lines, notes: Map<string, runs>, removed: string[]}
  */
-export function stripFurniture(pagesLines, stats) {
+export function stripFurniture(pagesLines, stats, known = []) {
   const nPages = pagesLines.length;
   const candidates = [];
   for (const pl of pagesLines) {
@@ -231,7 +311,9 @@ export function stripFurniture(pagesLines, stats) {
     // "Title — Author    Página 3 de 120": a header that carries "page N of M"
     // is furniture even when it appears only once (short documents).
     const pageOfN = /\b(?:p[aá]g(?:ina)?|p[àa]gina|page|seite)\.?\s*\d{1,4}\s*(?:\/|de|of|sur|von)\s*\d{1,4}\b/i.test(l.text);
-    if (repeated || pageOfN || PAGE_NUMBER_RE.test(l.text)) {
+    // the book's own title or author as a running head (short documents)
+    const isKnown = known.some((k) => k && normKey(k) === normKey(l.text));
+    if (repeated || pageOfN || isKnown || PAGE_NUMBER_RE.test(l.text)) {
       furniture.add(l);
       removed.push(l.text);
     }
@@ -309,6 +391,9 @@ function isCentered(l, stats) {
   // Both sides clearly indented by about the same amount (an indented
   // full-width first line is not centred).
   if (stats.indent && Math.abs(leftGap - stats.indent) < 0.5 * stats.bodyFs && rightGap < (right - left) * 0.25) return false;
+  // centred lines in prose are short (titles, scene breaks, epigraph lines);
+  // an indented ragged line of a quotation or list is not centred
+  if (l.x1 - l.x0 > 0.6 * (right - left)) return false;
   return leftGap > 1.5 * stats.bodyFs && rightGap > 1.5 * stats.bodyFs &&
     Math.abs(leftGap - rightGap) < Math.max(1.5 * stats.bodyFs, 0.05 * (right - left));
 }
@@ -356,7 +441,7 @@ export function assemble(lines, stats, notes, opts = {}) {
     if (!para) return;
     const first = para.lines[0];
     const block = {
-      type: 'p', runs: para.runs, align: para.lines.length === 1 && first.centered ? 'center' : 'left',
+      type: 'p', runs: para.runs, align: para.lines.length === 1 && first.centered ? 'center' : 'left', page: first.page,
       // look of the paragraph, for user-chosen chapter-title rules
       size: round(first.fs), relSize: first.fs / stats.bodyFs,
       allBold: para.lines.every((l) => l.bold), allItalic: para.lines.every((l) => l.italic),
@@ -386,7 +471,7 @@ export function assemble(lines, stats, notes, opts = {}) {
   let heading = null;
   const flushHeading = () => {
     if (!heading) return;
-    blocks.push({ type: 'p', runs: heading.runs, heading: { level: 1, source: 'format' }, size: round(heading.fs), relSize: heading.fs / stats.bodyFs, isolated: 'strong', align: heading.centered ? 'center' : 'left', allBold: heading.bold, allItalic: heading.italic });
+    blocks.push({ type: 'p', runs: heading.runs, heading: { level: 1, source: 'format' }, page: heading.page, size: round(heading.fs), relSize: heading.fs / stats.bodyFs, isolated: 'strong', align: heading.centered ? 'center' : 'left', allBold: heading.bold, allItalic: heading.italic });
     heading = null;
   };
 
@@ -409,7 +494,7 @@ export function assemble(lines, stats, notes, opts = {}) {
         continue;
       }
       flushHeading();
-      heading = { runs: l.runs.map((r) => ({ ...r })), fs: l.fs, centered: l.centered, bold: l.bold, italic: l.italic };
+      heading = { runs: l.runs.map((r) => ({ ...r })), fs: l.fs, centered: l.centered, bold: l.bold, italic: l.italic, page: l.page };
       continue;
     }
     flushHeading();
@@ -423,7 +508,7 @@ export function assemble(lines, stats, notes, opts = {}) {
     const { left, right } = stats.margins(l.page);
     const { right: rightA } = stats.margins(a.page);
     const indentB = l.x0 - left;
-    const isIndented = indentStyle && indentB > stats.indent * 0.5 && indentB < stats.indent * 2.5 + stats.bodyFs && !l.centered;
+    const isIndented = indentStyle && indentB > stats.indent * 0.5 && indentB < stats.indent * 2.5 + stats.bodyFs && !l.centered && !l.besideCap;
     const aShort = a.x1 < rightA - 2.5 * stats.bodyFs;
     const aEnds = SENTENCE_END_RE.test(a.text);
     const bStarts = /^[\p{Lu}\p{N}¿¡«“"‘'—–(]/u.test(l.text);
@@ -439,7 +524,23 @@ export function assemble(lines, stats, notes, opts = {}) {
       }
       breakHere = true;
     } else if (indentStyle) {
-      breakHere = isIndented;
+      // An indented block (quotation, letter) has every line at the same
+      // indent: only a short previous line ends its paragraph.
+      const { left: leftA } = stats.margins(a.page);
+      // (lines at exactly the normal paragraph indent are paragraph starts)
+      const sameIndent = Math.abs((a.x0 - leftA) - indentB) < 2;
+      // (lines at exactly the normal indent can still be a block when they are
+      // set smaller than the body text, like a quoted letter)
+      const smallerBlock = Math.abs(l.fs - stats.bodyFs) > 0.6 && Math.abs(a.fs - l.fs) < 0.3;
+      const blockIndent = sameIndent && (smallerBlock || Math.abs(indentB - stats.indent) > Math.max(3, 0.3 * stats.indent));
+      // Lists with a hanging indent ("1. text" then deeper, ragged lines):
+      // a deeper or same-indent line without a list marker continues the item.
+      const aIndent = a.x0 - leftA;
+      const listMarker = /^(?:\d{1,3}[.)]|[•●▪◦‣–—-]|\(?[a-z]\))\s/u.test(l.text);
+      const inBlock = aIndent > stats.indent * 0.5 && !listMarker && (blockIndent || indentB > aIndent + 2);
+      // Blocks are often indented on the right too, so "short" is unreliable
+      // there: a sentence end followed by a capital starts a new paragraph.
+      breakHere = inBlock ? aEnds && (aShort || bStarts) : isIndented;
     } else if (blockStyle && !samePage) {
       breakHere = aShort && aEnds && bStarts;
     } else if (!blockStyle) {
@@ -463,9 +564,23 @@ export function assemble(lines, stats, notes, opts = {}) {
 export function reflow(pages, opts = {}) {
   const warnings = [];
   const pagesLines = pages.map(buildLines);
+  // A drop cap that is a word by itself ("I was born…", "A man…") needs a
+  // space; "M" + "argot" does not. Decide with the book's own vocabulary.
+  const vocab = new WordStats();
+  for (const l of pagesLines.flat()) vocab.addText(l.dropCap ? l.text.slice(l.dropCap.length) : l.text);
+  for (const l of pagesLines.flat()) {
+    if (!l.dropCap) continue;
+    const rest = l.text.slice(l.dropCap.length);
+    const firstWord = (rest.match(/^[\p{L}’']+/u) || [''])[0];
+    const joined = l.dropCap + firstWord;
+    if (/^(?:[AIOYEUÀÉ])$/u.test(l.dropCap) && firstWord && !vocab.has(joined) && /^\p{Ll}/u.test(firstWord)) {
+      l.runs[0].t += ' ';
+      l.text = `${l.dropCap} ${rest}`;
+    }
+  }
   const all = pagesLines.flat();
   const stats = docStats(all);
-  const { lines: kept, notes, removed } = stripFurniture(pagesLines, stats);
+  const { lines: kept, notes, removed } = stripFurniture(pagesLines, stats, opts.known || []);
   const lines = classify(kept.flat(), stats);
   // multi-column check: many short body lines starting near the page middle
   const body = lines.filter((l) => l.type === 'body');

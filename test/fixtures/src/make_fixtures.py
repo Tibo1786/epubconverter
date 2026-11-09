@@ -78,8 +78,10 @@ def expected_for(book, extra=None):
     for ch in book["chapters"]:
         blocks = []
         for b in ch["blocks"]:
-            if isinstance(b, dict):
+            if isinstance(b, dict) and "break" in b:
                 blocks.append("<scene>")
+            elif isinstance(b, dict):  # quote / list: one paragraph per entry
+                blocks.extend(curlify(x) for x in (b.get("quote") or b.get("list")))
             else:
                 blocks.append(curlify(b))
         c = {"title": curlify(chapter_title(ch["heading"])), "blocks": blocks}
@@ -593,6 +595,168 @@ def typeset_pdf(book, path, *, style):
     c.save()
 
 
+
+# ------------------------------------------------- typeset book (InDesign-like)
+
+def typeset_book(book, path):
+    """A trade-book page: justified text drawn word by word, drop caps,
+    a letter set smaller and indented on both sides, a numbered list with a
+    hanging indent, running heads, folios, PDF bookmarks, and two artefacts
+    seen in real files: duplicated text fragments drawn over the lines in a
+    diagonal band (transparency flattening), and chapter titles whose font
+    loses glyphs (parts of the title drawn as images, so the text layer has
+    only some letters)."""
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.utils import ImageReader
+    from reportlab.pdfbase.pdfmetrics import stringWidth
+    from reportlab.pdfgen import canvas
+    from PIL import Image, ImageDraw, ImageFont
+
+    W, H = A4
+    ml, mr, mt, mb = 95, 95, 90, 80
+    width = W - ml - mr
+    size, lead = 12.5, 19
+    qsize, qlead = 10, 14.5
+    fonts = {(False, False): "Times-Roman", (True, False): "Times-Italic"}
+    c = canvas.Canvas(path, pagesize=A4)
+    c.setTitle(book["title"])
+    c.setAuthor(book["author"])
+    st = {"page": 0, "y": 0, "line": 0}
+
+    def new_page(header=True):
+        if st["page"]:
+            c.showPage()
+        st["page"] += 1
+        n = st["page"]
+        if header and n > 1:
+            c.setFont("Times-Roman", 9)
+            c.drawCentredString(W / 2, H - 50, book["title"] if n % 2 else book["author"])
+            c.drawCentredString(W / 2, 45, str(n))
+        st["y"] = H - mt
+        st["line"] = 0
+
+    def ww(w, it, sz):
+        return stringWidth(w, fonts[(it, False)], sz)
+
+    def draw_line(words, x0, avail, sz, justify):
+        """words: [(text, italic)]; returns nothing. Duplicates a couple of
+        words in a diagonal band, exactly on top of the originals."""
+        sw = stringWidth(" ", "Times-Roman", sz)
+        natural = sum(ww(t, i, sz) for t, i in words)
+        gaps = len(words) - 1
+        extra = (avail - natural - gaps * sw) / gaps if justify and gaps else 0
+        x = x0
+        pos = []
+        for t, i in words:
+            c.setFont(fonts[(i, False)], sz)
+            c.drawString(x, st["y"], t)
+            pos.append((x, t, i))
+            x += ww(t, i, sz) + sw + extra
+        band = (st["page"] * 3 + st["line"]) % 6
+        if band in (1, 2) and len(pos) > 4:
+            k = 1 + (st["line"] % 3)
+            for x, t, i in pos[k:k + 2]:
+                for _ in range(2):  # flattening leaves two copies
+                    c.setFont(fonts[(i, False)], sz)
+                    c.drawString(x, st["y"], t)
+        st["line"] += 1
+
+    def tokens(text):
+        out = []
+        for seg, it, bd in runs_of(text):
+            for w in seg.split():
+                out.append((w, it))
+        return out
+
+    def ensure(n, ld):
+        if st["y"] - n * ld < mb:
+            new_page()
+
+    def paragraph(text, *, indent=18, inset=0, right_inset=0, sz=size, ld=lead, justify=True,
+                  hang=0, cap_lines=0, cap_w=0):
+        toks = tokens(text)
+        line, lw, first, k = [], 0.0, True, 0
+        sw = stringWidth(" ", "Times-Roman", sz)
+        lineno = 0
+        while k < len(toks):
+            left = inset + (cap_w if lineno < cap_lines else (indent if first else hang))
+            avail = width - left - right_inset
+            t, it = toks[k]
+            add = ww(t, it, sz) + (sw if line else 0)
+            if lw + add <= avail or not line:
+                line.append((t, it)); lw += add; k += 1
+                continue
+            ensure(1, ld)
+            draw_line(line, ml + left, avail, sz, justify)
+            st["y"] -= ld
+            first, line, lw = False, [], 0.0
+            lineno += 1
+        if line:
+            ensure(1, ld)
+            left = inset + (cap_w if lineno < cap_lines else (indent if first else hang))
+            draw_line(line, ml + left, width - left - right_inset, sz, False)
+            st["y"] -= ld
+
+    def title_with_lost_glyphs(text, y):
+        """Draw the title so that only some letters reach the text layer:
+        'Chap' and 'er' are pictures, 't' and the number are real text."""
+        fsz = 26
+        try:
+            font = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf", 104)
+        except OSError:
+            font = ImageFont.load_default()
+        word, number = text.split(" ", 1)
+        parts = [("img", word[:4]), ("txt", word[4]), ("img", word[5:]), ("txt", " " + number)]
+        total = sum(stringWidth(p, "Times-Roman", fsz) for _, p in parts)
+        x = W / 2 - total / 2
+        for kind, p in parts:
+            w = stringWidth(p, "Times-Roman", fsz)
+            if kind == "txt":
+                c.setFont("Times-Roman", fsz)
+                c.drawString(x, y, p)
+            else:
+                img = Image.new("L", (int(w * 4) + 4, 4 * (fsz + 8)), 255)
+                ImageDraw.Draw(img).text((0, 0), p, font=font, fill=0)
+                c.drawImage(ImageReader(img), x, y - 7, width=w + 1, height=fsz + 8)
+            x += w
+
+    new_page(header=False)
+    c.setFont("Times-Bold", 30)
+    c.drawCentredString(W / 2, H * 0.6, book["title"])
+    c.setFont("Times-Roman", 16)
+    c.drawCentredString(W / 2, H * 0.6 - 40, book["author"])
+
+    for ci, ch in enumerate(book["chapters"]):
+        new_page()
+        key = f"ch{ci}"
+        c.bookmarkPage(key)
+        c.addOutlineEntry(ch["heading"][0], key, level=0)
+        title_with_lost_glyphs(ch["heading"][0], H * 0.72)
+        st["y"] = H * 0.72 - 70
+        for bi, b in enumerate(ch["blocks"]):
+            if isinstance(b, dict) and "quote" in b:
+                st["y"] -= 6
+                for q in b["quote"]:
+                    paragraph(q, indent=0, inset=36, right_inset=36, sz=qsize, ld=qlead, justify=False)
+                st["y"] -= 8
+            elif isinstance(b, dict) and "list" in b:
+                for item in b["list"]:
+                    paragraph(item, indent=0, inset=18, hang=14, sz=size, ld=lead, justify=False)
+            elif bi == 0:
+                # drop cap: first letter over three lines
+                cap, rest = b[0], b[1:]
+                capsz = lead * 3.1
+                capw = stringWidth(cap, "Times-Roman", capsz) + 3
+                ensure(3, lead)
+                c.setFont("Times-Roman", capsz)
+                c.drawString(ml, st["y"] - 2 * lead, cap)
+                paragraph(rest, indent=0, cap_lines=3, cap_w=capw)
+            else:
+                paragraph(b)
+    c.showPage()
+    c.save()
+
+
 # ------------------------------------------------------------- scanned PDF --
 
 def scanned_pdf(src_pdf, out_pdf):
@@ -686,6 +850,12 @@ def main():
     build_docx(pt, pdf_src, variant="pdf", layout="block")
     soffice_pdf(pdf_src, os.path.join(OUT, "plain-titles-en.pdf"))
     write_json("plain-titles-en.pdf.expected.json", expected_for(pt, {"forbidden": ["Nora Feld", "Página"]}))
+
+    # 4c. A typeset trade book with drop caps, flattening duplicates, blocks,
+    #     lists, garbled title glyphs and bookmarks
+    tb = corpus.TYPESET_EN
+    typeset_book(tb, os.path.join(OUT, "typeset-book-en.pdf"))
+    write_json("typeset-book-en.pdf.expected.json", expected_for(tb, {"forbidden": ["Ada Morrow"]}))
 
     # 5. Scanned PDF: images only, no text layer
     scanned_pdf(os.path.join(OUT, "novel-es.pdf"), os.path.join(OUT, "scanned.pdf"))

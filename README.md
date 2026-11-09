@@ -69,6 +69,7 @@ Send to Kindle keeps highlights and notes in the Kindle library, synced across d
 
 ## When the result isn't right
 
+- **Chapter titles garbled?** Some typeset PDFs use a title font whose letters can't be read. If the PDF has bookmarks, their titles are used automatically. Otherwise open **Chapters**, then use **Number them** (Chapter 1, 2, 3…) or **Edit titles**.
 - **Chapters missing or wrong?** Use the **Chapter titles** menu. It lists the looks found in the manuscript, with how many chapters each gives and an example: a Word paragraph style, larger text, bold lines, CAPITALS, centred lines, lines starting with a number. When nothing is found automatically, the app already tries the most consistent of these and says so ("Automatic (found: bold lines)").
 - **Words changed?** Tick **Keep the text exactly as written**. This turns off the typographic clean-up (curly quotes, `--` → —, spacing around punctuation, French no-break spaces). A hyphen at the end of a PDF line is then kept unless the joined word appears elsewhere in the book.
 - **Still wrong? Send a problem report.** Tap *Something looks wrong? Send a privacy-safe problem report…*. The app makes a small `.zip` on the device in which every letter of the manuscript is replaced by `x` / `X`. What remains:

@@ -1,7 +1,7 @@
 // Service worker: makes the app work offline and installable.
 // It only ever fetches this site's own files; it never sees your manuscript
 // (files are read with the File API, not over the network).
-const VERSION = 'v5';
+const VERSION = 'v6';
 const CACHE = `manuscript-reader-${VERSION}`;
 const ASSETS = [
   './',

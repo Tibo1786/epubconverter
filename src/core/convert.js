@@ -59,10 +59,10 @@ export function buildFromRaw(raw, opts = {}) {
   let res = raw;
   if (!!opts.faithful !== raw.faithful) {
     const trace = [];
-    if (raw.type === 'pdf') res = { ...raw, ...reflow(raw.pages, { faithful: opts.faithful, trace }), trace, warnings: raw.warnings };
+    if (raw.type === 'pdf') res = { ...raw, ...reflow(raw.pages, { faithful: opts.faithful, trace, known: [raw.meta?.title, raw.meta?.author] }), trace, warnings: raw.warnings };
     else if (raw.type === 'txt') res = { ...raw, ...readText(raw.text, { faithful: opts.faithful, trace }), trace };
   }
-  const book = buildBook(res.blocks, { ...res.meta, lang: opts.lang }, res.notes, opts);
+  const book = buildBook(res.blocks, { ...res.meta, lang: opts.lang, outline: raw.outline }, res.notes, opts);
   if (!book.meta.title) book.meta.title = titleFromFilename(raw.name);
   book.warnings = [...(res.warnings || []), ...book.warnings];
   book.type = raw.type;

@@ -28,7 +28,8 @@ bytes ─► reader ─► raw blocks ─► structure.buildBook ─► book ─
 - `src/core/pdf/reflow.js`. Each step is exported and unit-tested:
   1. `buildLines`: baseline clustering, space inference from gaps, superscripts
   2. `docStats`: body font size, line pitch, paragraph gap, margins per page, first-line indent
-  3. `stripFurniture`: repeated top/bottom lines and page numbers, footnote extraction
+  3. `stripFurniture`: repeated top/bottom lines, page numbers, "Página N de M" and the book's own title or author in the margins; footnote extraction
+  (before 1: `dropOverlaps` removes text drawn on top of the same text, and drop caps are glued to the line beside them)
   4. `classify`: heading (size ≥ 1.15× body, or centred and chapter-like), scene, body
   5. `assemble`: paragraph breaks from indent, gap, or a short line ending a sentence; cross-page continuation; dehyphenation
 - `src/core/structure.js`, shared by all readers:
@@ -70,6 +71,7 @@ Fixture producers are deliberately varied:
 - python-docx for DOCX
 - LibreOffice for "exported from Word" PDFs (double-spaced and indented, or block paragraphs with a "Página N de M" header)
 - a custom reportlab typesetter (`typeset_pdf`) with real hyphenation including Catalan l·l, word-by-word drawing, and "– N –" page numbers
+- `typeset_book`, a trade-book layout: word-by-word justified text, drop caps, duplicated fragments in a diagonal band (transparency flattening), a smaller indented letter, a hanging-indent list, titles partly drawn as images (lost glyphs), and bookmarks
 - a rasterised scan
 
 **Real-world failures:** ask for a problem report from the app. Replay it, fix the heuristic, then reproduce the layout as a synthetic fixture in `make_fixtures.py`. Example: `plain-titles-en` (bold, left-aligned, unnumbered titles). Never commit the report itself if the user hasn't agreed.
