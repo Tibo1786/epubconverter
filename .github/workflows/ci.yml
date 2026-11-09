@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - run: npm ci
+
+      - name: Vendored libraries match the pinned npm versions
+        run: |
+          npm run vendor
+          git diff --exit-code -- vendor/
+
+      - name: Unit and quality tests
+        run: npm test
+
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: End-to-end tests (real browser, desktop + phone)
+        run: npx playwright test
+
+      - uses: actions/cache@v4
+        with:
+          path: .cache
+          key: epubcheck-5.4.0
+
+      - name: epubcheck on every generated EPUB
+        run: |
+          node scripts/try.mjs test/fixtures/*.docx test/fixtures/*.pdf test/fixtures/*.txt
+          bash scripts/epubcheck.sh out/*.epub out/e2e/*.epub
+
+      - name: Build the site (only public files)
+        run: |
+          mkdir -p _site
+          cp -r index.html app.css sw.js manifest.webmanifest icons src vendor _site/
+          touch _site/.nojekyll
+
+      - uses: actions/upload-pages-artifact@v3
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        with:
+          path: _site
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: test-output
+          path: |
+            test-results/
+            out/
+          retention-days: 7
+
+  deploy:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: test
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
