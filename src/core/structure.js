@@ -13,6 +13,7 @@ import { detectLanguage, LANGS } from './lang.js';
 import { matchesRule, fallbackRule } from './headings.js';
 
 const UNTITLED = { es: 'Inicio', ca: 'Inici', en: 'Beginning', fr: 'Début' };
+const CHAPTER_WORD = { es: 'Capítulo', ca: 'Capítol', en: 'Chapter', fr: 'Chapitre' };
 
 const norm = (s) => (s || '').toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
 
@@ -124,11 +125,14 @@ export function buildBook(rawBlocks, meta = {}, notes = new Map(), opts = {}) {
   let blocks = [];
   for (const b of rawBlocks) {
     if (b.type !== 'p') { blocks.push(b); continue; }
+    // Private-use characters are glyphs without a character map (ligatures of
+    // a display font): remember it before typography removes them.
+    const lostGlyphs = b.runs.some((r) => r.t && /[\uE000-\uF8FF]/.test(r.t));
     const runs = normalizeRuns(b.runs, lang, opts);
     const t = runsText(runs).trim();
     if (!t && !runs.some((r) => r.note !== undefined)) { blocks.push({ type: 'blank' }); continue; }
     if (isSceneBreak(t) && !b.heading) { blocks.push({ type: 'scene' }); continue; }
-    blocks.push({ ...b, runs });
+    blocks.push({ ...b, runs, ...(lostGlyphs ? { lostGlyphs } : {}) });
   }
   blocks = resolveBlanks(blocks);
 
@@ -176,7 +180,7 @@ export function buildBook(rawBlocks, meta = {}, notes = new Map(), opts = {}) {
     if (b.type === 'p' && b.heading) {
       let title = textOf(b);
       let kind = b.kind;
-      const h = { type: 'h', title, kind, source: b.heading.source, titleStyle: b.titleStyle, runs: b.runs, page: b.page, size: b.size };
+      const h = { type: 'h', title, kind, source: b.heading.source, titleStyle: b.titleStyle, runs: b.runs, page: b.page, size: b.size, lostGlyphs: b.lostGlyphs };
       // look ahead for subtitle(s)
       while (k + 1 < blocks.length) {
         const n = blocks[k + 1];
@@ -280,7 +284,7 @@ export function buildBook(rawBlocks, meta = {}, notes = new Map(), opts = {}) {
     const b = blocks[k];
     if (b.type === 'h') {
       if (b.frontMatter) continue;
-      cur = { title: b.title, level: hasParts && b.kind !== 'part' ? 2 : 1, blocks: [], page: b.page, size: b.size, kind: b.kind };
+      cur = { title: b.title, level: hasParts && b.kind !== 'part' ? 2 : 1, blocks: [], page: b.page, size: b.size, kind: b.kind, lostGlyphs: b.lostGlyphs };
       chapters.push(cur);
     } else if (b.type === 'p' || b.type === 'scene') {
       if (!cur) { cur = { title: UNTITLED[lang], level: 1, blocks: [], untitled: true }; chapters.push(cur); }
@@ -310,6 +314,30 @@ export function buildBook(rawBlocks, meta = {}, notes = new Map(), opts = {}) {
       if (looksGarbled(c.title, o.title)) { c.titleFromText = c.title; c.title = o.title; renamed++; }
     }
     if (renamed) warnings.push(`${renamed} chapter title${renamed === 1 ? ' was' : 's were'} taken from the PDF’s bookmarks.`);
+  }
+
+  // Title fonts with ligature glyphs that have no character map lose letters:
+  // "Chapter one" is drawn as [Ch][ap]t[er] [on]e and read as "t e". Three
+  // or more such titles starting the same way share a constant word
+  // ("Chapter") that could not be read: number those chapters in order.
+  const broken = finalChapters.filter((c) => c.lostGlyphs && !c.titleFromText);
+  if (broken.length) {
+    const groups = new Map();
+    for (const c of broken) {
+      const first = c.title.split(/\s+/)[0];
+      if (!groups.has(first)) groups.set(first, []);
+      groups.get(first).push(c);
+    }
+    const word = CHAPTER_WORD[lang] || CHAPTER_WORD.en;
+    let numbered = 0;
+    for (const group of groups.values()) {
+      if (group.length < 3) continue;
+      group.forEach((c, i) => { c.titleFromText = c.title; c.title = `${word} ${i + 1}`; });
+      numbered += group.length;
+    }
+    if (numbered) warnings.push(`${numbered} chapter titles could not be read (the PDF’s title font has no character map), so they were numbered. You can edit them under “Chapters”.`);
+    const rest = broken.filter((c) => !c.titleFromText);
+    if (rest.length) warnings.push(`Some chapter titles are incomplete because the PDF’s title font cannot be read (${rest.slice(0, 3).map((c) => `“${c.title}”`).join(', ')}). You can edit them under “Chapters”.`);
   }
 
   if (!blocks.some((b) => b.type === 'h' && !b.frontMatter)) {
