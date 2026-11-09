@@ -16,6 +16,22 @@ const UNTITLED = { es: 'Inicio', ca: 'Inici', en: 'Beginning', fr: 'Début' };
 
 const norm = (s) => (s || '').toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
 
+/**
+ * A title read from the page is "garbled" when the bookmark holds the same
+ * letters plus some that went missing (fonts without a character map drop
+ * glyphs: "Chapter two" -> "t two"), or when it has no letters at all.
+ */
+export function looksGarbled(fromText, fromBookmark) {
+  const a = norm(fromText).replace(/ /g, '');
+  const b = norm(fromBookmark).replace(/ /g, '');
+  if (!b || a === b) return false;
+  if (!/\p{L}/u.test(a)) return true;
+  if (b.length < a.length + 2) return false;
+  let i = 0;
+  for (const ch of b) if (ch === a[i]) i++;
+  return i === a.length; // every letter read is in the bookmark, in order
+}
+
 function textOf(b) {
   return b.type === 'p' ? runsText(b.runs).trim() : '';
 }
@@ -160,7 +176,7 @@ export function buildBook(rawBlocks, meta = {}, notes = new Map(), opts = {}) {
     if (b.type === 'p' && b.heading) {
       let title = textOf(b);
       let kind = b.kind;
-      const h = { type: 'h', title, kind, source: b.heading.source, titleStyle: b.titleStyle, runs: b.runs };
+      const h = { type: 'h', title, kind, source: b.heading.source, titleStyle: b.titleStyle, runs: b.runs, page: b.page, size: b.size };
       // look ahead for subtitle(s)
       while (k + 1 < blocks.length) {
         const n = blocks[k + 1];
@@ -264,7 +280,7 @@ export function buildBook(rawBlocks, meta = {}, notes = new Map(), opts = {}) {
     const b = blocks[k];
     if (b.type === 'h') {
       if (b.frontMatter) continue;
-      cur = { title: b.title, level: hasParts && b.kind !== 'part' ? 2 : 1, blocks: [] };
+      cur = { title: b.title, level: hasParts && b.kind !== 'part' ? 2 : 1, blocks: [], page: b.page, size: b.size, kind: b.kind };
       chapters.push(cur);
     } else if (b.type === 'p' || b.type === 'scene') {
       if (!cur) { cur = { title: UNTITLED[lang], level: 1, blocks: [], untitled: true }; chapters.push(cur); }
@@ -273,7 +289,28 @@ export function buildBook(rawBlocks, meta = {}, notes = new Map(), opts = {}) {
   }
   for (const c of chapters) trimScenes(c.blocks);
   // Drop empty untitled chapters
-  const finalChapters = chapters.filter((c) => c.blocks.length || !c.untitled);
+  let finalChapters = chapters.filter((c) => c.blocks.length || !c.untitled);
+  // Empty headings before the first chapter with text (a book title alone on
+  // its page) are front matter, not chapters. Parts are kept.
+  while (finalChapters.length > 1 && !finalChapters[0].blocks.length && !hasParts) finalChapters.shift();
+
+  // PDF bookmarks: typeset books carry the real chapter titles in their
+  // outline, which survives even when the title font cannot be read
+  // (missing character maps). A chapter starting on a bookmarked page takes
+  // the bookmark's title.
+  const outline = (meta.outline || []).filter((o) => o.title && o.page);
+  if (outline.length >= 2) {
+    const used = new Set();
+    let renamed = 0;
+    for (const c of finalChapters) {
+      if (!c.page) continue;
+      const o = outline.find((x) => !used.has(x) && (x.page === c.page || x.page === c.page - 1));
+      if (!o) continue;
+      used.add(o);
+      if (looksGarbled(c.title, o.title)) { c.titleFromText = c.title; c.title = o.title; renamed++; }
+    }
+    if (renamed) warnings.push(`${renamed} chapter title${renamed === 1 ? ' was' : 's were'} taken from the PDF’s bookmarks.`);
+  }
 
   if (!blocks.some((b) => b.type === 'h' && !b.frontMatter)) {
     warnings.push('No chapter titles were found, so the book has a single section. If the manuscript has chapters, choose how their titles look under “Chapter titles”.');

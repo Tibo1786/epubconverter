@@ -71,6 +71,9 @@ details { border-top: 1px solid var(--line); padding: 8px 0; }
 summary { cursor: pointer; font-weight: 600; padding: 4px 0; }
 .toc ol { margin: 8px 0 0; padding-left: 1.4em; }
 .toc li.sub { margin-left: 1.2em; list-style-type: circle; }
+.toc-input { padding: 6px 8px; margin: 2px 0; }
+.toc-tools { display: flex; gap: 12px; flex-wrap: wrap; margin: 6px 0 0; }
+.toc-tools .link { padding: 4px 0; font-size: 0.92rem; }
 .preview-text { font-family: Georgia, "Times New Roman", serif; font-size: 1.02rem; line-height: 1.55; max-height: 50vh; overflow: auto; padding: 4px 2px; }
 .preview-text h3 { text-align: center; font-weight: normal; font-size: 1.15rem; }
 .preview-text p { margin: 0; text-indent: 1.3em; }

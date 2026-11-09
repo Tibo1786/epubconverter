@@ -139,6 +139,7 @@ export function buildDiagnosticReport(raw, book, extra = {}) {
   if (raw.type === 'pdf' && raw.pages) {
     report.pdf = {
       meta: { langHint: raw.meta?.langHint },
+      outline: (raw.outline || []).map((o) => ({ title: anonymizeText(o.title), page: o.page, level: o.level })),
       // per page: size and every text item [text, x, y, width, fontSize, bold, italic]
       pages: raw.pages.map((p) => ({ n: p.n, w: Math.round(p.width * 10) / 10, h: Math.round(p.height * 10) / 10,
         items: markCuts(p.items).map(({ it, cut }) => [anonymizeText(it.str, cut), +it.x.toFixed(2), +it.y.toFixed(2), +it.w.toFixed(2), +it.fs.toFixed(2), it.bold ? 1 : 0, it.italic ? 1 : 0]) })),

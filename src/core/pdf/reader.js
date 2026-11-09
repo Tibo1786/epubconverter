@@ -46,6 +46,23 @@ export async function readPdf(bytes, pdfjs, opts = {}) {
   } catch { /* metadata is optional */ }
 
   const fonts = new Map(); // loadedName -> {bold, italic, name}
+  // Bookmarks (outline): the real chapter titles of typeset books.
+  const outline = [];
+  try {
+    const walk = async (items, level) => {
+      for (const it of items || []) {
+        let page = null;
+        try {
+          let dest = it.dest;
+          if (typeof dest === 'string') dest = await doc.getDestination(dest);
+          if (Array.isArray(dest) && dest[0] != null) page = (typeof dest[0] === 'object' ? await doc.getPageIndex(dest[0]) : dest[0]) + 1;
+        } catch { /* unresolvable destination */ }
+        outline.push({ title: (it.title || '').replace(/\s+/g, ' ').trim(), page, level });
+        if (level < 3) await walk(it.items, level + 1);
+      }
+    };
+    await walk(await doc.getOutline(), 1);
+  } catch { /* no outline */ }
   const pages = [];
   let chars = 0;
   let rotated = 0;
@@ -94,8 +111,8 @@ export async function readPdf(bytes, pdfjs, opts = {}) {
     warnings.push(`Some pages (${pages.length - textPages} of ${pages.length}) have no text layer and were skipped (they may be scanned images).`);
   }
   if (rotated > chars * 0.05) warnings.push('Some rotated text was ignored.');
-  const res = reflow(pages, opts);
+  const res = reflow(pages, { ...opts, known: [meta.title, meta.author] });
   // raw pages are kept so the book can be rebuilt with other options, and
   // for the anonymised problem report
-  return { ...res, pages, meta, warnings: [...warnings, ...res.warnings], source: 'pdf' };
+  return { ...res, pages, outline, meta, warnings: [...warnings, ...res.warnings], source: 'pdf' };
 }

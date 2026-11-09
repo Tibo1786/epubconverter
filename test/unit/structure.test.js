@@ -77,3 +77,20 @@ test('a chapter in another language is tagged', () => {
   assert.equal(book.meta.lang, 'ca');
   assert.equal(book.chapters[1].lang, 'en');
 });
+
+test('bookmarks replace chapter titles only when the text title lost letters', async () => {
+  const { looksGarbled } = await import('../../src/core/structure.js');
+  assert.equal(looksGarbled('t two', 'Chapter Two'), true);
+  assert.equal(looksGarbled('t e', 'Chapter One'), true);
+  assert.equal(looksGarbled('Capítulo 1. La llegada', 'Capítulo 1'), false);
+  assert.equal(looksGarbled('The Harbour', 'The Harbour'), false);
+  assert.equal(looksGarbled('Salt', 'Part One: Salt and Sea'), true); // fuller bookmark title: harmless
+  assert.equal(looksGarbled('The Harbour', 'Salt'), false);
+  const blocks = [
+    P('t e', { heading: { level: 1, source: 'format' }, page: 3 }), P(long(1), { page: 3 }),
+    P('t two', { heading: { level: 1, source: 'format' }, page: 5 }), P(long(2), { page: 5 }),
+  ];
+  const book = buildBook(blocks, { lang: 'en', outline: [{ title: 'Chapter One', page: 3 }, { title: 'Chapter Two', page: 5 }] });
+  assert.deepEqual(book.chapters.map((c) => c.title), ['Chapter One', 'Chapter Two']);
+  assert.match(book.warnings.join(' '), /bookmarks/);
+});

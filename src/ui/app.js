@@ -1,13 +1,14 @@
 // UI glue. All conversion code lives in src/core and runs locally.
 import { readManuscript, buildFromRaw, sniffType, APP_VERSION } from '../core/convert.js';
 import { headingOptions } from '../core/headings.js';
+import { STANDALONE_RE } from '../core/patterns.js';
 import { buildDiagnosticReport } from '../core/diagnostic.js';
 import { buildEpub } from '../core/epub.js';
 import { report } from '../core/report.js';
 import { openReader, fileKey } from './reader.js';
 
 const $ = (id) => document.getElementById(id);
-const state = { bytes: null, name: '', raw: null, book: null, busy: false, key: null, rules: new Map() };
+const state = { bytes: null, name: '', raw: null, book: null, busy: false, key: null, rules: new Map(), titles: new Map(), editing: false };
 
 const prefs = {
   get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch { return d; } },
@@ -73,7 +74,9 @@ async function convert() {
 function rebuild() {
   if (!state.raw || state.raw.scanned) return;
   const keep = { title: $('title').value, author: $('author').value };
+  const before = state.book?.chapters.length;
   state.book = buildFromRaw(state.raw, options($('lang').value));
+  if (state.book.chapters.length !== before) state.titles.clear();
   render();
   $('title').value = keep.title; $('author').value = keep.author;
 }
@@ -100,7 +103,7 @@ async function handleFile(file) {
   $('result').hidden = true;
   $('report-box').hidden = true;
   $('report-done').hidden = true;
-  state.raw = null; state.book = null;
+  state.raw = null; state.book = null; state.titles.clear(); state.editing = false;
   state.name = file.name;
   try {
     state.bytes = new Uint8Array(await file.arrayBuffer());
@@ -160,12 +163,7 @@ function render() {
     warnings.push('Some paragraphs may be split or joined wrongly (the PDF layout is unusual). The Word file would convert better.');
   }
   renderWarnings(warnings);
-  $('toc').replaceChildren(...book.chapters.map((c) => {
-    const li = document.createElement('li');
-    li.textContent = c.title;
-    if (c.level === 2) li.className = 'sub';
-    return li;
-  }));
+  renderToc();
   // preview: first ~12 blocks
   const out = [];
   let count = 0;
@@ -188,6 +186,55 @@ function render() {
   }
   $('preview').replaceChildren(...out);
   $('share').hidden = !canShareFiles();
+}
+
+/** Chapter titles with the user's edits applied. */
+function chapterTitle(c, i) { return state.titles.get(i) ?? c.title; }
+
+function bookForOutput() {
+  return {
+    ...state.book,
+    chapters: state.book.chapters.map((c, i) => ({ ...c, title: chapterTitle(c, i) })),
+    meta: { ...state.book.meta, title: $('title').value.trim() || state.book.meta.title, author: $('author').value.trim(), lang: $('lang').value },
+  };
+}
+
+function renderToc() {
+  const book = state.book;
+  $('toc').replaceChildren(...book.chapters.map((c, i) => {
+    const li = document.createElement('li');
+    if (c.level === 2) li.className = 'sub';
+    if (state.editing) {
+      const input = Object.assign(document.createElement('input'), { type: 'text', value: chapterTitle(c, i), className: 'toc-input' });
+      input.setAttribute('aria-label', `Title of chapter ${i + 1}`);
+      input.addEventListener('input', () => {
+        if (input.value.trim() && input.value !== c.title) state.titles.set(i, input.value.trim()); else state.titles.delete(i);
+      });
+      li.append(input);
+    } else {
+      li.textContent = chapterTitle(c, i);
+    }
+    return li;
+  }));
+  $('edit-titles').textContent = state.editing ? 'Done' : 'Edit titles';
+}
+
+/** "Chapter 1, 2, 3…" for chapters that share the usual title look. */
+function numberChapters() {
+  const word = { es: 'Capítulo', ca: 'Capítol', en: 'Chapter', fr: 'Chapitre' }[$('lang').value] || 'Chapter';
+  const chs = state.book.chapters;
+  const sizes = new Map();
+  for (const c of chs) if (c.size && !c.untitled) sizes.set(c.size, (sizes.get(c.size) ?? 0) + 1);
+  const main = [...sizes].sort((a, b) => b[1] - a[1])[0]?.[0];
+  // Front matter (title page, copyright) comes before the first chapter with
+  // the usual title look; prologues, epilogues and notes keep their names.
+  const firstMain = main ? chs.findIndex((c) => !c.untitled && c.size && Math.abs(c.size - main) <= 0.6 && !STANDALONE_RE.test(c.title)) : 0;
+  let n = 0;
+  chs.forEach((c, i) => {
+    if (i < firstMain || c.untitled || STANDALONE_RE.test(c.title)) return;
+    state.titles.set(i, `${word} ${++n}`);
+  });
+  renderToc();
 }
 
 function canShareFiles() {
@@ -246,10 +293,7 @@ function fileName() {
 }
 
 async function makeEpubFile() {
-  const book = {
-    ...state.book,
-    meta: { ...state.book.meta, title: $('title').value.trim() || state.book.meta.title, author: $('author').value.trim(), lang: $('lang').value },
-  };
+  const book = bookForOutput();
   const confidential = confidentialLine();
   const cover = await makeCover(book.meta.title, book.meta.author, confidential);
   const bytes = buildEpub(book, { confidential, cover });
@@ -295,13 +339,15 @@ for (const ev of ['dragenter', 'dragover']) drop.addEventListener(ev, (e) => { e
 for (const ev of ['dragleave', 'drop']) drop.addEventListener(ev, () => drop.classList.remove('over'));
 drop.addEventListener('drop', (e) => { e.preventDefault(); handleFile(e.dataTransfer.files[0]); });
 $('read').addEventListener('click', () => {
-  const book = { ...state.book, meta: { ...state.book.meta, lang: $('lang').value } };
-  openReader(book, { title: $('title').value.trim() || book.meta.title, author: $('author').value.trim(), key: state.key });
+  const book = bookForOutput();
+  openReader(book, { title: book.meta.title, author: book.meta.author, key: state.key });
 });
 $('download').addEventListener('click', () => withBusy($('download'), download));
 $('share').addEventListener('click', () => withBusy($('share'), share));
 $('again').addEventListener('click', reset);
 $('lang').addEventListener('change', rebuild);
+$('edit-titles').addEventListener('click', () => { state.editing = !state.editing; renderToc(); if (state.editing) $('toc').querySelector('input')?.focus(); });
+$('number-titles').addEventListener('click', () => { $('toc-box').open = true; numberChapters(); });
 $('headings').addEventListener('change', rebuild);
 $('faithful').checked = prefs.get('mr-faithful', false);
 $('faithful').addEventListener('change', () => { prefs.set('mr-faithful', $('faithful').checked); rebuild(); });

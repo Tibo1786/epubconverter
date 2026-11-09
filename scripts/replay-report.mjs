@@ -19,7 +19,9 @@ const faithful = args.includes('--faithful');
 const ruleArg = args[args.indexOf('--rule') + 1];
 const headingRule = args.includes('--rule') ? (ruleArg.includes(':') ? { kind: ruleArg.split(':')[0], value: ruleArg.split(':')[0] === 'size' ? Number(ruleArg.split(':')[1]) : ruleArg.split(':').slice(1).join(':') } : { kind: ruleArg }) : null;
 
-const { report, docx } = rawFromReport(new Uint8Array(readFileSync(file)));
+const { report, docx } = file.endsWith('.json')
+  ? { report: JSON.parse(readFileSync(file, 'utf8')), docx: null }
+  : rawFromReport(new Uint8Array(readFileSync(file)));
 console.log(`report v${report.formatVersion} from app ${report.appVersion} (${report.created}), input ${report.input.type}, ${report.input.pages ?? '?'} pages`);
 if (report.note) console.log(`note: "${report.note}"`);
 console.log('settings when sent:', JSON.stringify(report.settings));
@@ -32,7 +34,8 @@ if (report.input.type === 'docx' && docx) {
   const pages = report.pdf.pages.map((p) => ({ n: p.n, width: p.w, height: p.h, items: p.items.map(([str, x, y, w, fs, b, i]) => ({ str, x, y, w, fs, bold: !!b, italic: !!i })) }));
   const r = reflow(pages, { faithful });
   blocks = r.blocks;
-  book = buildBook(r.blocks, { lang: opts.lang, langHint: report.pdf.meta?.langHint }, r.notes, opts);
+  book = buildBook(r.blocks, { lang: opts.lang, langHint: report.pdf.meta?.langHint, outline: report.pdf.outline }, r.notes, opts);
+  console.log('bookmarks:', (report.pdf.outline || []).length);
   console.log('layout stats:', JSON.stringify({ bodyFs: r.debug.stats.bodyFs, pitch: r.debug.stats.pitch, indent: r.debug.stats.indent, paraGap: r.debug.stats.paraGap }));
   console.log('removed as headers/footers:', [...new Set(r.debug.removed)].slice(0, 12));
 } else if (report.input.type === 'txt' && report.txt) {
