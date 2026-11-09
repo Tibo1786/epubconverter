@@ -122,3 +122,15 @@ test('footnotes at the bottom of the page are extracted and linked', () => {
   assert.equal(runsText(res.notes.get(id)), 'Esta es la nota al pie.');
   assert.ok(!texts(res).some((t) => t.includes('Esta es la nota')));
 });
+
+test('a full-width body line repeated at the top of several pages is not a running header', () => {
+  const pages = [1, 2, 3, 4].map((k) => page(k, [
+    { text: 'y la conciencia tranquila de quien no ha hecho nada malo en su vida' },
+    { text: 'entera, pensé.', short: true },
+    { text: `Un párrafo distinto en la hoja ${['a', 'b', 'c', 'd'][k - 1]} que llega al margen derecho`, indent: true },
+    { text: 'y termina.', short: true },
+  ], { header: 'Marta Vidal' }));
+  const t = texts(reflow(pages));
+  assert.equal(t.filter((x) => x.includes('y la conciencia tranquila')).length, 4);
+  assert.ok(!t.join(' ').includes('Marta Vidal'));
+});

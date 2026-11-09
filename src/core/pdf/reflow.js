@@ -223,7 +223,11 @@ export function stripFurniture(pagesLines, stats) {
     if (isSceneBreak(l.text)) continue;
     // Running headers do not end like sentences; this protects body lines
     // that happen to repeat at the top of pages (e.g. a dialogue line "—No.").
-    const repeated = counts.get(keyOf(l.text)).size >= minRepeat && !/[.!?…]["”»’)]?$/.test(l.text);
+    const { left, right } = stats.margins(l.page);
+    // ...and are short: a line spanning most of the text width is body text
+    // that happens to repeat (common phrases at the top of a page).
+    const wide = right > left && l.x1 - l.x0 > 0.7 * (right - left);
+    const repeated = counts.get(keyOf(l.text)).size >= minRepeat && !/[.!?…]["”»’)]?$/.test(l.text) && !wide;
     if (repeated || PAGE_NUMBER_RE.test(l.text)) {
       furniture.add(l);
       removed.push(l.text);
