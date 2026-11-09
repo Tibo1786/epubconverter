@@ -41,34 +41,41 @@ export function endsWithHyphenation(line) {
  * @returns {{join: boolean, text: string}} how to glue the two lines
  */
 export function joinHyphenated(leftLine, rightLine, ctx = {}) {
+  const res = decideHyphen(leftLine, rightLine, ctx);
+  if (ctx.trace) ctx.trace.push({ left: leftLine.slice(-24), right: rightLine.slice(0, 24), join: res.join, reason: res.reason });
+  return res;
+}
+
+function decideHyphen(leftLine, rightLine, ctx) {
   const hy = leftLine.slice(-1);
   const body = leftLine.slice(0, -1);
   const leftWord = (body.match(/[\p{L}\p{M}·'’]+$/u) || [''])[0];
   const rightWord = (rightLine.match(/^[\p{L}\p{M}·'’]+/u) || [''])[0];
-  if (!leftWord || !rightWord) return { join: false, text: `${leftLine}${rightLine.startsWith(' ') ? '' : ''}${rightLine}` };
-  if (hy === '­') return { join: true, text: body + rightLine };
+  const keep = (reason) => ({ join: false, text: `${body}-${rightLine}`, reason });
+  const join = (reason, mid = '') => ({ join: true, text: body + mid + rightLine, reason });
+  if (!leftWord || !rightWord) return { join: false, text: leftLine + rightLine, reason: 'not-a-word' };
+  if (hy === '\u00ad') return join('soft-hyphen');
 
   const stats = ctx.stats;
   const lowerRight = rightWord.toLowerCase();
   const lowerLeft = leftWord.toLowerCase();
 
-  // Catalan l·l
+  // Catalan l·l: "col-" + "lecció" is always a split l·l in Catalan.
   if (/l$/i.test(leftWord) && /^l/i.test(rightWord)) {
     const ll = `${lowerLeft}·${lowerRight}`;
-    if (ctx.lang === 'ca' || (stats && stats.has(ll))) {
-      return { join: true, text: `${body}·${rightLine}` };
-    }
+    if (ctx.lang === 'ca' || (stats && stats.has(ll))) return join('catalan-l·l', '·');
   }
   if (stats) {
-    const compound = `${lowerLeft}-${lowerRight}`;
-    const joined = lowerLeft + lowerRight;
-    const hasCompound = stats.has(compound);
-    const hasJoined = stats.has(joined);
-    if (hasCompound && !hasJoined) return { join: false, text: `${body}-${rightLine}` };
-    if (hasJoined) return { join: true, text: body + rightLine };
+    const hasCompound = stats.has(`${lowerLeft}-${lowerRight}`);
+    const hasJoined = stats.has(lowerLeft + lowerRight);
+    if (hasCompound && !hasJoined) return keep('compound-seen');
+    if (hasJoined) return join('joined-seen');
   }
-  if (/^[\p{Lu}\p{N}]/u.test(rightWord)) return { join: false, text: `${body}-${rightLine}` };
-  return { join: true, text: body + rightLine };
+  if (/^[\p{Lu}\p{N}]/u.test(rightWord)) return keep('uppercase');
+  // No evidence either way. Line-break hyphenation is far more common than a
+  // compound broken at its hyphen, so join, unless the user asked to keep the
+  // text exactly as written.
+  return ctx.faithful ? keep('faithful-no-evidence') : join('default');
 }
 
 export { HYPHENS };

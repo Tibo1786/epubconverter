@@ -91,6 +91,13 @@ a { color: var(--accent); }
   .actions .link { margin-left: auto; }
 }
 
+textarea { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; width: 100%; resize: vertical; }
+.hint { display: block; font-size: 0.82rem; color: var(--muted); margin-top: 4px; }
+.check .hint { margin-top: 2px; }
+.report-link { margin: 8px 0 0; text-align: center; }
+.report-box { border-top: 1px solid var(--line); margin-top: 8px; padding-top: 12px; font-size: 0.95rem; }
+.report-box code { background: var(--bg); padding: 0 4px; border-radius: 4px; }
+
 /* ------------------------------------------------------------- reader -- */
 body.reading { overflow: hidden; }
 body.reading > header.top, body.reading > main { display: none; }

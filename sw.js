@@ -1,7 +1,7 @@
 // Service worker: makes the app work offline and installable.
 // It only ever fetches this site's own files; it never sees your manuscript
 // (files are read with the File API, not over the network).
-const VERSION = 'v3';
+const VERSION = 'v4';
 const CACHE = `manuscript-reader-${VERSION}`;
 const ASSETS = [
   './',
@@ -24,6 +24,8 @@ const ASSETS = [
   'src/core/lang.js',
   'src/core/dehyphen.js',
   'src/core/report.js',
+  'src/core/headings.js',
+  'src/core/diagnostic.js',
   'src/core/epub.js',
   'src/core/pdf/reader.js',
   'src/core/pdf/reflow.js',

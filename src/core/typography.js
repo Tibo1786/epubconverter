@@ -6,16 +6,20 @@
 const LIGATURES = { 'ﬀ': 'ff', 'ﬁ': 'fi', 'ﬂ': 'fl', 'ﬃ': 'ffi', 'ﬄ': 'ffl', 'ﬅ': 'st', 'ﬆ': 'st' };
 const NBSP = ' ';
 
-/** Fixes that are safe on a single run (no cross-run context needed). */
-export function fixRunText(s, lang) {
+/**
+ * Fixes that are safe on a single run (no cross-run context needed).
+ * `faithful` keeps the author's characters: only invisible or glyph-level
+ * artefacts (NFC, ligatures, ŀl, soft hyphens, odd spaces) are repaired.
+ */
+export function fixRunText(s, lang, faithful = false) {
   s = s.normalize('NFC');
   s = s.replace(/[ﬀ-ﬆ]/g, (c) => LIGATURES[c] ?? c);
   // Catalan geminated l: ŀl / Ŀl (precomposed), l.l, l•l, l∙l, l⋅l, l‧l -> l·l
   s = s.replace(/ŀ(?=l)/g, 'l·').replace(/Ŀ(?=L)/g, 'L·');
   s = s.replace(/([lL])[•∙⋅‧･](?=[lL])/g, '$1·');
-  if (lang === 'ca') s = s.replace(/(\p{Ll})l\.l(?=\p{Ll})/gu, '$1l·l');
+  if (lang === 'ca' && !faithful) s = s.replace(/(\p{Ll})l\.l(?=\p{Ll})/gu, '$1l·l');
   // Typewriter dashes
-  s = s.replace(/---?/g, '—');
+  if (!faithful) s = s.replace(/---?/g, '—');
   // Soft hyphens and zero-width characters are layout hints, not text.
   s = s.replace(/[­​‌⁠﻿]/g, '');
   // Tabs and odd spaces become plain spaces (NBSP is kept: it is intentional).
@@ -60,13 +64,13 @@ export function frenchSpaces(s) {
  * Normalise the runs of one paragraph in place-safe way and return new runs.
  * Runs: {t, i?, b?, sup?} | {note} | {br}
  */
-export function normalizeRuns(runs, lang) {
-  // 1. per-run fixes
-  let rs = runs.map((r) => (r.t !== undefined ? { ...r, t: fixRunText(r.t, lang) } : r));
+export function normalizeRuns(runs, lang, { faithful = false } = {}) {
+  // 1. per-run fixes (every run is copied: raw blocks may be rebuilt later)
+  let rs = runs.map((r) => (r.t !== undefined ? { ...r, t: fixRunText(r.t, lang, faithful) } : { ...r }));
   // 2. quotes with paragraph context (length-preserving)
   const textRuns = rs.filter((r) => r.t !== undefined);
   const joined = textRuns.map((r) => r.t).join('');
-  if (/["']/.test(joined)) {
+  if (!faithful && /["']/.test(joined)) {
     const curled = curlQuotes(joined);
     let pos = 0;
     for (const r of textRuns) {
@@ -95,7 +99,7 @@ export function normalizeRuns(runs, lang) {
   const punct = lang === 'fr' ? /^(?:,|\.(?!\.))/ : /^(?:[,;:!?]|\.(?!\.))/;
   const inner = lang === 'fr' ? / +(,|\.(?!\.))/g : / +([,;:!?]|\.(?!\.))/g;
   let prevText = null;
-  for (const r of rs) {
+  for (const r of faithful ? [] : rs) {
     if (r.t === undefined) { prevText = null; continue; }
     r.t = r.t.replace(inner, '$1');
     if (prevText && punct.test(r.t)) prevText.t = prevText.t.replace(/ +$/, '');
@@ -106,7 +110,7 @@ export function normalizeRuns(runs, lang) {
   for (let k = 1; k < rs.length; k++) {
     if (rs[k].note !== undefined && rs[k - 1].t !== undefined) rs[k - 1].t = rs[k - 1].t.replace(/ +$/, '');
   }
-  if (lang === 'fr') {
+  if (lang === 'fr' && !faithful) {
     const tr = rs.filter((r) => r.t !== undefined);
     const j = tr.map((r) => r.t).join('');
     const f = frenchSpaces(j);

@@ -19,7 +19,7 @@ bytes ─► reader ─► raw blocks ─► structure.buildBook ─► book ─
          pdf/reader.js (pdf.js glue) → pdf/reflow.js (pure)
 ```
 
-- `src/core/convert.js`: entry point. `convertToBook(bytes, name, {pdfjs, lang, onProgress})` sniffs the type and returns the book or `{scanned:true}`.
+- `src/core/convert.js`: entry point. `readManuscript(bytes, name, opts)` does the slow part (unzip / pdf.js) and returns raw blocks (plus the raw PDF pages). `buildFromRaw(raw, {lang, faithful, headingRule})` builds the book and is cheap to call again when options change. `convertToBook` does both.
 - `src/core/xml.js`: a tiny namespace-aware XML parser. Element names are canonicalised by namespace URI, so `w:p` is always WordprocessingML.
 - `src/core/docx.js`:
   - style inheritance (docDefaults → paragraph style chain → char style → direct)
@@ -41,6 +41,8 @@ bytes ─► reader ─► raw blocks ─► structure.buildBook ─► book ─
 - `src/core/typography.js`: run-level fixes, curly quotes using the whole paragraph as context, French spaces, run merging.
 - `src/core/dehyphen.js`: the line-end hyphen decision (soft hyphen, Catalan l·l, document evidence, upper case).
 - `src/core/lang.js`: stopword classifier for es/ca/en/fr.
+- `src/core/headings.js`: chapter titles by "look". `headingOptions(blocks)` lists the rules a document supports (style, size, bold, caps, number, centre); `matchesRule`; `fallbackRule`, used when automatic detection finds no chapter.
+- `src/core/diagnostic.js`: privacy-safe problem report. `anonymizeText` (letters → x/X; kept: punctuation, digits in short lines, function words, chapter words; PDF word fragments are always masked), `anonymizeDocx`, `buildDiagnosticReport(raw, book)` → zip with `report.json` (+ `anonymized.docx`). Replay one with `node scripts/replay-report.mjs report.zip [--faithful] [--rule bold]`.
 - `src/core/epub.js`: EPUB 3 plus NCX, one XHTML per chapter, footnotes as `aside epub:type="footnote"`, optional cover. The zip comes from fflate with `mimetype` first and stored.
 - `src/ui/reader.js`: the in-browser reader. Pages mode paginates with CSS columns (one or two columns per screen) and turns pages with `scrollLeft`; scroll mode is plain vertical scrolling. One chapter is rendered at a time, with DOM text nodes only (never `innerHTML`). The position (`{c, b}` = chapter and block index) and settings live in `localStorage`, never the text. Words glued to dialogue dashes are wrapped in no-wrap spans (`dashSegments` in typography.js), in the EPUB too.
 - `src/ui/app.js`: the UI. It lazy-loads pdf.js, builds the cover on a canvas, and handles download, Web Share and the service worker.
@@ -69,6 +71,10 @@ Fixture producers are deliberately varied:
 - LibreOffice for "exported from Word" PDFs (double-spaced and indented, or block paragraphs with a "Página N de M" header)
 - a custom reportlab typesetter (`typeset_pdf`) with real hyphenation including Catalan l·l, word-by-word drawing, and "– N –" page numbers
 - a rasterised scan
+
+**Real-world failures:** ask for a problem report from the app. Replay it, fix the heuristic, then reproduce the layout as a synthetic fixture in `make_fixtures.py`. Example: `plain-titles-en` (bold, left-aligned, unnumbered titles). Never commit the report itself if the user hasn't agreed.
+
+**Faithful mode** (`faithful: true`) must never change a character the author typed, apart from invisible or glyph-level artefacts (NFC, ligatures, ŀl, soft hyphens, odd spaces). A line-end hyphen is kept unless joining is certain (soft hyphen, Catalan l·l, joined form seen in the document).
 
 ## Conventions
 

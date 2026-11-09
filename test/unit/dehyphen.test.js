@@ -5,7 +5,9 @@ import { joinHyphenated, endsWithHyphenation, WordStats } from '../../src/core/d
 const stats = (t) => { const s = new WordStats(); s.addText(t); return s; };
 
 test('plain line-break hyphenation is joined', () => {
-  assert.deepEqual(joinHyphenated('pero no: conven-', 'cida de que', {}), { join: true, text: 'pero no: convencida de que' });
+  const r = joinHyphenated('pero no: conven-', 'cida de que', {});
+  assert.equal(r.join, true);
+  assert.equal(r.text, 'pero no: convencida de que');
 });
 
 test('soft hyphen at line end always joins', () => {
@@ -36,4 +38,12 @@ test('endsWithHyphenation ignores dashes that are not word breaks', () => {
   assert.equal(endsWithHyphenation('conven-'), true);
   assert.equal(endsWithHyphenation('dijo -'), false);
   assert.equal(endsWithHyphenation('1974-'), false);
+});
+
+test('faithful mode keeps the hyphen unless joining is certain, and traces decisions', () => {
+  const trace = [];
+  assert.equal(joinHyphenated('pero no: conven-', 'cida de que', { faithful: true, trace }).text, 'pero no: conven-cida de que');
+  assert.equal(joinHyphenated('extraordinaria\u00ad', 'mente', { faithful: true, trace }).text, 'extraordinariamente');
+  assert.equal(joinHyphenated('estaba conven-', 'cida', { faithful: true, stats: stats('convencida'), trace }).text, 'estaba convencida');
+  assert.deepEqual(trace.map((t) => t.reason), ['faithful-no-evidence', 'soft-hyphen', 'joined-seen']);
 });

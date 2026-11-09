@@ -196,3 +196,49 @@ PLAIN_EN = {
         },
     ],
 }
+
+
+# Chapter titles that are only bold, left-aligned, body-sized lines in the
+# Normal style, with no number: invisible to style/size/wording rules.
+PLAIN_TITLES_EN = {
+    "title": "The Salt Road",
+    "author": "Nora Feld",
+    "lang": "en",
+    "chapters": [
+        {
+            "heading": ["The Harbour"],
+            "kind": "boldleft",
+            "blocks": [
+                "The ferry arrived an hour late, which in that part of the coast counted as punctual. Ines stood at the rail with her suitcase between her feet and watched the town assemble itself out of the mist: a church, a row of yellow houses, a crane that had not moved in years.",
+                "Nobody was waiting for her. She had expected that, and still it surprised her, the way a step that is not there surprises the foot. She carried the suitcase up the ramp herself and asked the first person she saw for the address on the envelope.",
+                "The woman read it twice, looked at Ines with frank curiosity, and pointed up the hill without a word. It was, Ines would learn, the most anyone in that town ever said to a stranger on the first day.",
+            ],
+        },
+        {
+            "heading": ["Salt"],
+            "kind": "boldleft",
+            "blocks": [
+                "The house belonged to the salt works, or had once. Its walls were white with something that was not paint, and when she touched them her fingers came away tasting of the sea. Inside, every surface held a thin crust of the same fine powder.",
+                "Her grandfather had worked the pans for forty years. In the kitchen drawer she found his ledgers, columns of numbers in pencil that grew fainter towards the end, as if he had been pressing less and less hard on the world.",
+                {"break": "***"},
+                "In the evening she walked down to the flats. The pans lay in long rectangles under a sky the colour of pewter, and a single man was raking them in slow, patient strokes, pulling the salt into small white hills.",
+            ],
+        },
+        {
+            "heading": ["The Ledger"],
+            "kind": "boldleft",
+            "blocks": [
+                "The man with the rake was called Tomas, and he had known her grandfather longer than anyone. He did not ask why she had come. He asked whether she could read the ledgers, and when she said she could, he nodded as if a debt had been settled.",
+                "That night she read them all. The numbers were not only salt. In the margins, in a hand smaller than the rest, her grandfather had written the names of the boats that went out and the dates on which they came back, or did not.",
+            ],
+        },
+        {
+            "heading": ["What the Tide Keeps"],
+            "kind": "boldleft",
+            "blocks": [
+                "She stayed through the winter. She learned to rake, badly at first and then well enough, and to read the weather from the colour of the brine. Tomas never praised her, which she understood eventually to be the highest praise he had.",
+                "In spring she wrote the last line in the ledger herself, in pencil, pressing hard. It was a name and a date, and beside it, for the first time in that long column, the word returned.",
+            ],
+        },
+    ],
+}

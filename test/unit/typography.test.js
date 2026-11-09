@@ -54,3 +54,9 @@ test('dialogue dashes stay glued to their words', async () => {
   assert.deepEqual(nw('the wind — which'), []);
   assert.equal(dashSegments('sin rayas').length, 1);
 });
+
+test('faithful mode keeps quotes, dashes and spacing exactly as typed', () => {
+  const src = 'He said "hello" -- then left . Ça va ? Don\'t';
+  assert.equal(runsText(normalizeRuns([{ t: src }], 'en', { faithful: true })), src);
+  assert.equal(runsText(normalizeRuns([{ t: 'coŀlecció  i  ﬁ' }], 'ca', { faithful: true })), 'col·lecció i fi');
+});

@@ -6,3 +6,4 @@ out/
 *.local.*
 # Never commit real manuscripts: keep them outside the repo or in private/
 private/
+__pycache__/

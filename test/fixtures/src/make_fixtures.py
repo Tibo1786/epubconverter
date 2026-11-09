@@ -350,7 +350,11 @@ def _body(doc, book, path, variant):
 
     for ci, ch in enumerate(book["chapters"]):
         head = ch["heading"]
-        if ch.get("kind", "style") == "style":
+        if ch.get("kind") == "boldleft":
+            p = doc.add_paragraph()
+            set_cell_props(p, align=WD_ALIGN_PARAGRAPH.LEFT, indent=Cm(0), before=Pt(24), keep_next=True)
+            p.add_run(head[0]).bold = True
+        elif ch.get("kind", "style") == "style":
             doc.add_paragraph(head[0], style="Heading 1")
             if len(head) > 1:
                 doc.add_paragraph(head[1], style="Heading 2")
@@ -673,6 +677,15 @@ def main():
     build_txt(en, os.path.join(OUT, "plain-en.txt"))
     exp = expected_for(en)
     write_json("plain-en.txt.expected.json", exp)
+
+    # 4b. Chapter titles only in bold, left-aligned, body size, no numbers
+    pt = corpus.PLAIN_TITLES_EN
+    build_docx(pt, os.path.join(OUT, "plain-titles-en.docx"), variant="full", layout="block")
+    write_json("plain-titles-en.docx.expected.json", expected_for(pt))
+    pdf_src = os.path.join(tmp, "plain-titles-en.docx")
+    build_docx(pt, pdf_src, variant="pdf", layout="block")
+    soffice_pdf(pdf_src, os.path.join(OUT, "plain-titles-en.pdf"))
+    write_json("plain-titles-en.pdf.expected.json", expected_for(pt, {"forbidden": ["Nora Feld", "Página"]}))
 
     # 5. Scanned PDF: images only, no text layer
     scanned_pdf(os.path.join(OUT, "novel-es.pdf"), os.path.join(OUT, "scanned.pdf"))

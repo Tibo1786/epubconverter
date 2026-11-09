@@ -33,7 +33,7 @@ export function markupRuns(text) {
 /**
  * @param {Uint8Array|string} input
  */
-export function readText(input) {
+export function readText(input, opts = {}) {
   const text = typeof input === 'string' ? input : decodeText(input);
   const rawLines = text.split('\n').map((l) => l.replace(/\s+$/, ''));
   const stats = new WordStats();
@@ -89,7 +89,7 @@ export function readText(input) {
     let para = lines[0];
     for (let i = 1; i < lines.length; i++) {
       if (endsWithHyphenation(para) && /^\p{Ll}/u.test(lines[i])) {
-        para = joinHyphenated(para, lines[i], { stats }).text;
+        para = joinHyphenated(para, lines[i], { stats, faithful: !!opts.faithful, trace: opts.trace }).text;
       } else if (/\p{L}—$/u.test(para) && /^\p{L}/u.test(lines[i])) {
         para += lines[i];
       } else {
@@ -109,5 +109,5 @@ export function readText(input) {
     }
     blocks.push(block);
   }
-  return { blocks, notes: new Map(), meta: {}, warnings: [], source: 'txt' };
+  return { blocks, notes: new Map(), meta: {}, warnings: [], source: 'txt', text };
 }

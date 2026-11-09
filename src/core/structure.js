@@ -10,6 +10,7 @@
 import { headingKind, isSceneBreak, SENTENCE_END_RE } from './patterns.js';
 import { normalizeRuns, runsText } from './typography.js';
 import { detectLanguage, LANGS } from './lang.js';
+import { matchesRule, fallbackRule } from './headings.js';
 
 const UNTITLED = { es: 'Inicio', ca: 'Inici', en: 'Beginning', fr: 'Début' };
 
@@ -91,7 +92,15 @@ function joinTitle(a, b) {
  * @param {{title?, author?, langHint?, lang?}} meta
  * @param {Map<string, object[]>} notes  note id -> runs
  */
-export function buildBook(rawBlocks, meta = {}, notes = new Map()) {
+/**
+ * @param {object[]} rawBlocks
+ * @param {object} meta
+ * @param {Map} notes
+ * @param {{faithful?: boolean, headingRule?: {kind, value?}}} opts
+ *   faithful: keep the author's characters (no typographic clean-up);
+ *   headingRule: how chapter titles look ('auto' or a rule from headings.js)
+ */
+export function buildBook(rawBlocks, meta = {}, notes = new Map(), opts = {}) {
   const lang = meta.lang || chooseLanguage(rawBlocks, meta.langHint);
   const warnings = [];
 
@@ -99,7 +108,7 @@ export function buildBook(rawBlocks, meta = {}, notes = new Map()) {
   let blocks = [];
   for (const b of rawBlocks) {
     if (b.type !== 'p') { blocks.push(b); continue; }
-    const runs = normalizeRuns(b.runs, lang);
+    const runs = normalizeRuns(b.runs, lang, opts);
     const t = runsText(runs).trim();
     if (!t && !runs.some((r) => r.note !== undefined)) { blocks.push({ type: 'blank' }); continue; }
     if (isSceneBreak(t) && !b.heading) { blocks.push({ type: 'scene' }); continue; }
@@ -107,18 +116,40 @@ export function buildBook(rawBlocks, meta = {}, notes = new Map()) {
   }
   blocks = resolveBlanks(blocks);
 
-  // 2. headings: reader hints + wording
-  for (const b of blocks) {
-    if (b.type !== 'p') continue;
-    const t = textOf(b);
-    const kind = headingKind(t);
-    if (b.heading) {
-      b.kind = kind ?? 'titled';
-    } else if (kind === 'chapter' || kind === 'part') {
-      if (t.length <= 70 && (b.isolated !== false)) { b.heading = { level: 1, source: 'pattern' }; b.kind = kind; }
-    } else if (kind === 'number' && (b.align === 'center' || b.isolated === 'strong')) {
-      b.heading = { level: 1, source: 'pattern' };
-      b.kind = 'number';
+  // 2. headings: a rule chosen by the user, or reader hints + wording, with
+  //    an automatic fallback by "look" when nothing was found.
+  const applyRule = (rule) => {
+    for (const b of blocks) {
+      if (b.type !== 'p') continue;
+      if (matchesRule(b, rule)) { b.heading = { level: 1, source: 'rule' }; b.kind = headingKind(textOf(b)) ?? 'chapter'; } else { delete b.heading; delete b.kind; }
+    }
+  };
+  let usedRule = null;
+  const chosen = opts.headingRule && opts.headingRule.kind !== 'auto' ? opts.headingRule : null;
+  if (chosen) {
+    applyRule(chosen);
+    usedRule = chosen;
+  } else {
+    for (const b of blocks) {
+      if (b.type !== 'p') continue;
+      const t = textOf(b);
+      const kind = headingKind(t);
+      if (b.heading) {
+        b.kind = kind ?? 'titled';
+      } else if (kind === 'chapter' || kind === 'part') {
+        if (t.length <= 70 && (b.isolated !== false)) { b.heading = { level: 1, source: 'pattern' }; b.kind = kind; }
+      } else if (kind === 'number' && (b.align === 'center' || b.isolated === 'strong')) {
+        b.heading = { level: 1, source: 'pattern' };
+        b.kind = 'number';
+      }
+    }
+    // Fallback by "look" when no chapter title was found. A single heading
+    // before the text starts (a typed title page) does not count.
+    const firstLong = blocks.findIndex((b) => b.type === 'p' && textOf(b).length > 150);
+    const found = blocks.filter((b, i) => b.type === 'p' && b.heading && !b.titleStyle && !(i < firstLong && blocks.slice(0, firstLong).filter((x) => x.heading).length === 1));
+    if (!found.length) {
+      const fb = fallbackRule(blocks);
+      if (fb) { applyRule(fb); usedRule = { ...fb, automatic: true }; }
     }
   }
 
@@ -245,7 +276,7 @@ export function buildBook(rawBlocks, meta = {}, notes = new Map()) {
   const finalChapters = chapters.filter((c) => c.blocks.length || !c.untitled);
 
   if (!blocks.some((b) => b.type === 'h' && !b.frontMatter)) {
-    warnings.push('No chapter headings were found, so the book has a single section.');
+    warnings.push('No chapter titles were found, so the book has a single section. If the manuscript has chapters, choose how their titles look under “Chapter titles”.');
   }
 
   // 6. languages per chapter / paragraph
@@ -279,7 +310,7 @@ export function buildBook(rawBlocks, meta = {}, notes = new Map()) {
           if (!runs) continue;
           n++;
           seen.set(r.note, n);
-          c.notes.push({ n, runs: normalizeRuns(runs, c.lang || lang) });
+          c.notes.push({ n, runs: normalizeRuns(runs, c.lang || lang, opts) });
         }
         r.n = seen.get(r.note);
       }
@@ -287,5 +318,5 @@ export function buildBook(rawBlocks, meta = {}, notes = new Map()) {
     }
   }
 
-  return { meta: metaOut, chapters: finalChapters, warnings };
+  return { meta: metaOut, chapters: finalChapters, warnings, headingRule: usedRule };
 }
