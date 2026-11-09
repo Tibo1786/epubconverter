@@ -13,21 +13,25 @@ async function openBook(page, name = 'novel-es.docx') {
   await expect(page.locator('#reader')).toBeVisible();
 }
 const progress = (page) => page.locator('.r-progress').textContent();
+// The progress line is filled after layout (next animation frame): use the
+// retrying assertion, never a one-off read, to check it.
+const expectProgress = (page, re) => expect(page.locator('.r-progress')).toHaveText(re);
 
 test('opens the book, turns pages and chapters, jumps from the contents', async ({ page }) => {
   await openBook(page);
   await expect(page.locator('.r-chapter-title')).toHaveText('Capítulo 1. La llegada');
   await expect(page.locator('.r-title')).toHaveText('La casa de los relojes');
-  expect(await progress(page)).toMatch(/^Chapter 1\/4 · page 1\/\d+ · 0%$/);
+  await expectProgress(page, /^Chapter 1\/4 · page 1\/\d+ · 0%$/);
   await page.keyboard.press('ArrowRight');
-  expect(await progress(page)).toMatch(/page 2\//);
+  await expectProgress(page, /page 2\//);
   await page.keyboard.press('ArrowLeft');
-  expect(await progress(page)).toMatch(/page 1\//);
+  await expectProgress(page, /page 1\//);
   // keep turning until chapter 2
   for (let k = 0; k < 30 && !(await progress(page)).startsWith('Chapter 2'); k++) await page.click('[aria-label="Next page"]');
   await expect(page.locator('.r-chapter-title')).toHaveText('CAPÍTULO 2. Los relojes');
   // previous from the first page of chapter 2 lands on the LAST page of chapter 1
   await page.click('[aria-label="Previous page"]');
+  await expectProgress(page, /^Chapter 1\//);
   const p = await progress(page);
   const [, cur, tot] = p.match(/page (\d+)\/(\d+)/);
   expect(p.startsWith('Chapter 1')).toBe(true);
@@ -78,7 +82,7 @@ test('reopening the same file resumes where you left off; settings persist', asy
   await openBook(page);
   await expect(page.locator('.r-chapter-title')).toHaveText('Capítulo 3: El sótano');
   await expect(page.locator('#reader')).toHaveAttribute('data-theme', 'sepia');
-  expect((await progress(page)).startsWith('Chapter 3/4')).toBe(true);
+  await expectProgress(page, /^Chapter 3\/4/);
 });
 
 test('reading makes no network requests and stores no manuscript text', async ({ page, baseURL }) => {

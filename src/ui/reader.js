@@ -194,6 +194,10 @@ class Reader {
     const saved = this.posKey ? store.get(this.posKey, null) : null;
     const c = saved && saved.c < book.chapters.length ? saved.c : 0;
     this.renderChapter(c);
+    // show where we are right away; exact pages follow after layout
+    this.page = 0;
+    this.pages = 1;
+    this.updateProgress();
     requestAnimationFrame(() => {
       this.relayout(saved && saved.c === c ? saved.b : 0);
       this.viewport.focus({ preventScroll: true });

@@ -228,7 +228,10 @@ export function stripFurniture(pagesLines, stats) {
     // that happens to repeat (common phrases at the top of a page).
     const wide = right > left && l.x1 - l.x0 > 0.7 * (right - left);
     const repeated = counts.get(keyOf(l.text)).size >= minRepeat && !/[.!?…]["”»’)]?$/.test(l.text) && !wide;
-    if (repeated || PAGE_NUMBER_RE.test(l.text)) {
+    // "Title — Author    Página 3 de 120": a header that carries "page N of M"
+    // is furniture even when it appears only once (short documents).
+    const pageOfN = /\b(?:p[aá]g(?:ina)?|p[àa]gina|page|seite)\.?\s*\d{1,4}\s*(?:\/|de|of|sur|von)\s*\d{1,4}\b/i.test(l.text);
+    if (repeated || pageOfN || PAGE_NUMBER_RE.test(l.text)) {
       furniture.add(l);
       removed.push(l.text);
     }
@@ -333,12 +336,12 @@ export function classify(lines, stats) {
 
 // ---------------------------------------------------------- 5. assemble ----
 
-export function assemble(lines, stats, notes) {
+export function assemble(lines, stats, notes, opts = {}) {
   const blocks = [];
   const wordStats = new WordStats();
   for (const l of lines) wordStats.addText(l.text);
   const lang = detectLanguage(lines.slice(0, 3000).map((l) => l.text).join(' ')).lang;
-  const ctx = { stats: wordStats, lang };
+  const ctx = { stats: wordStats, lang, faithful: !!opts.faithful, trace: opts.trace };
   const noteIds = new Map(); // num -> ids (in page order)
   for (const id of notes.keys()) {
     const num = id.split('-')[1];
@@ -351,7 +354,13 @@ export function assemble(lines, stats, notes) {
   let para = null; // {lines:[], runs:[]}
   const flush = () => {
     if (!para) return;
-    const block = { type: 'p', runs: para.runs, align: para.lines.length === 1 && para.lines[0].centered ? 'center' : 'left' };
+    const first = para.lines[0];
+    const block = {
+      type: 'p', runs: para.runs, align: para.lines.length === 1 && first.centered ? 'center' : 'left',
+      // look of the paragraph, for user-chosen chapter-title rules
+      size: round(first.fs), relSize: first.fs / stats.bodyFs,
+      allBold: para.lines.every((l) => l.bold), allItalic: para.lines.every((l) => l.italic),
+    };
     if (para.lines.length === 1) {
       const l = para.lines[0];
       const gapAbove = para.gapAbove ?? Infinity;
@@ -377,7 +386,7 @@ export function assemble(lines, stats, notes) {
   let heading = null;
   const flushHeading = () => {
     if (!heading) return;
-    blocks.push({ type: 'p', runs: heading.runs, heading: { level: 1, source: 'format' }, relSize: heading.fs / stats.bodyFs, align: heading.centered ? 'center' : 'left', allBold: heading.bold, allItalic: heading.italic });
+    blocks.push({ type: 'p', runs: heading.runs, heading: { level: 1, source: 'format' }, size: round(heading.fs), relSize: heading.fs / stats.bodyFs, isolated: 'strong', align: heading.centered ? 'center' : 'left', allBold: heading.bold, allItalic: heading.italic });
     heading = null;
   };
 
@@ -451,7 +460,7 @@ export function assemble(lines, stats, notes) {
 }
 
 /** Full pipeline. */
-export function reflow(pages) {
+export function reflow(pages, opts = {}) {
   const warnings = [];
   const pagesLines = pages.map(buildLines);
   const all = pagesLines.flat();
@@ -464,6 +473,6 @@ export function reflow(pages) {
   if (body.length > 40 && midStarts > body.length * 0.3) {
     warnings.push('This PDF seems to have several columns; the text order may be wrong. The Word file would convert better.');
   }
-  const blocks = assemble(lines, stats, notes);
+  const blocks = assemble(lines, stats, notes, opts);
   return { blocks, notes, warnings, debug: { stats, removed } };
 }

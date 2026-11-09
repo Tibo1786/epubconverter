@@ -94,6 +94,8 @@ export async function readPdf(bytes, pdfjs, opts = {}) {
     warnings.push(`Some pages (${pages.length - textPages} of ${pages.length}) have no text layer and were skipped (they may be scanned images).`);
   }
   if (rotated > chars * 0.05) warnings.push('Some rotated text was ignored.');
-  const res = reflow(pages);
-  return { ...res, meta, warnings: [...warnings, ...res.warnings], source: 'pdf' };
+  const res = reflow(pages, opts);
+  // raw pages are kept so the book can be rebuilt with other options, and
+  // for the anonymised problem report
+  return { ...res, pages, meta, warnings: [...warnings, ...res.warnings], source: 'pdf' };
 }

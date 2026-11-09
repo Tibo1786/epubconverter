@@ -63,6 +63,12 @@
         </div>
       </div>
       <label class="check"><input id="confidential" type="checkbox" checked> Add “Confidential submission, received …” to the title page</label>
+      <div class="field">
+        <label for="headings">Chapter titles</label>
+        <select id="headings" name="headings"><option value="auto">Automatic</option></select>
+        <span class="hint">If chapters are missing or wrong, choose how the titles look in the manuscript.</span>
+      </div>
+      <label class="check"><input id="faithful" type="checkbox"> <span>Keep the text exactly as written<span class="hint">No typographic clean-up (quotes, dashes, spacing), and hyphens at line ends are kept unless joining is certain.</span></span></label>
     </form>
 
     <div class="summary" id="summary"></div>
@@ -81,6 +87,16 @@
       <button type="button" id="download" class="primary">Download EPUB</button>
       <button type="button" id="share" class="secondary" hidden>Send to Kindle app…</button>
       <button type="button" id="again" class="link">Convert another file</button>
+    </div>
+    <p class="report-link"><button type="button" id="report-open" class="link" hidden>Something looks wrong? Send a privacy-safe problem report…</button></p>
+    <div id="report-box" class="report-box" hidden>
+      <p>This creates a small file describing the <strong>layout</strong> of the manuscript, with every letter replaced by <code>x</code>. It keeps fonts, sizes, positions, styles, punctuation, chapter words like “Capítulo” and very common words like “de” or “the”, so the problem can be reproduced without revealing the text. It is made on this device; open it to check it before sending it to the developer.</p>
+      <div class="field">
+        <label for="report-note">What looks wrong? (optional, please don’t paste manuscript text)</label>
+        <textarea id="report-note" rows="3" placeholder="e.g. chapter titles missing; page 12: two words merged"></textarea>
+      </div>
+      <button type="button" id="report-create" class="secondary">Create report file</button>
+      <p id="report-done" class="fine" hidden>Saved. Send the .zip file by email, or attach it to an issue on GitHub.</p>
     </div>
   </section>
 

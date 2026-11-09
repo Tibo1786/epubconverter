@@ -1,11 +1,18 @@
 // UI glue. All conversion code lives in src/core and runs locally.
-import { convertToBook, sniffType } from '../core/convert.js';
+import { readManuscript, buildFromRaw, sniffType, APP_VERSION } from '../core/convert.js';
+import { headingOptions } from '../core/headings.js';
+import { buildDiagnosticReport } from '../core/diagnostic.js';
 import { buildEpub } from '../core/epub.js';
 import { report } from '../core/report.js';
 import { openReader, fileKey } from './reader.js';
 
 const $ = (id) => document.getElementById(id);
-const state = { bytes: null, name: '', book: null, busy: false, key: null };
+const state = { bytes: null, name: '', raw: null, book: null, busy: false, key: null, rules: new Map() };
+
+const prefs = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* private mode */ } },
+};
 
 let pdfjsPromise = null;
 function loadPdfjs() {
@@ -38,9 +45,16 @@ function confidentialLine() {
   return `Confidential submission, received ${date}`;
 }
 
-async function convert(langOverride) {
+/** Current conversion options from the form. */
+function options(lang) {
+  const id = $('headings').value;
+  return { lang, faithful: $('faithful').checked, headingRule: id === 'auto' ? null : state.rules.get(id) ?? null };
+}
+
+/** Read the file (slow part); the book itself is rebuilt by rebuild(). */
+async function convert() {
   const type = sniffType(state.name, state.bytes);
-  const opts = { lang: langOverride };
+  const opts = { faithful: $('faithful').checked };
   if (type === 'pdf') {
     setStatus('Loading the PDF reader…');
     opts.pdfjs = await loadPdfjs();
@@ -50,7 +64,33 @@ async function convert(langOverride) {
   }
   // let the status paint before heavy work
   await new Promise((r) => setTimeout(r, 0));
-  return convertToBook(state.bytes, state.name, opts);
+  state.raw = await readManuscript(state.bytes, state.name, opts);
+  $('headings').value = 'auto';
+  return buildFromRaw(state.raw, options());
+}
+
+/** Rebuild the book with the current options (fast: no re-reading). */
+function rebuild() {
+  if (!state.raw || state.raw.scanned) return;
+  const keep = { title: $('title').value, author: $('author').value };
+  state.book = buildFromRaw(state.raw, options($('lang').value));
+  render();
+  $('title').value = keep.title; $('author').value = keep.author;
+}
+
+function fillHeadingChoices() {
+  const sel = $('headings');
+  const opts = state.raw && !state.raw.scanned ? headingOptions(state.raw.blocks) : [];
+  state.rules = new Map(opts.map((o) => [o.id, { kind: o.kind, value: o.value }]));
+  const current = sel.value;
+  const auto = state.book?.headingRule?.automatic ? `Automatic (found: ${state.book.headingRule.label.toLowerCase()})` : 'Automatic';
+  sel.replaceChildren(
+    Object.assign(document.createElement('option'), { value: 'auto', textContent: auto }),
+    ...opts.map((o) => Object.assign(document.createElement('option'), {
+      value: o.id,
+      textContent: `${o.label} · ${o.count} chapters, e.g. “${o.example}”`,
+    })));
+  sel.value = state.rules.has(current) ? current : 'auto';
 }
 
 async function handleFile(file) {
@@ -58,6 +98,9 @@ async function handleFile(file) {
   state.busy = true;
   showError('');
   $('result').hidden = true;
+  $('report-box').hidden = true;
+  $('report-done').hidden = true;
+  state.raw = null; state.book = null;
   state.name = file.name;
   try {
     state.bytes = new Uint8Array(await file.arrayBuffer());
@@ -68,6 +111,7 @@ async function handleFile(file) {
       return;
     }
     state.book = book;
+    fillHeadingChoices();
     $('title').value = book.meta.title || '';
     $('author').value = book.meta.author || '';
     $('lang').value = book.meta.lang || 'en';
@@ -88,6 +132,7 @@ function showOnlyMessage(msg) {
   setStatus('');
   $('result').hidden = false;
   for (const el of [$('meta'), $('toc-box'), document.querySelector('.preview'), $('read'), $('download'), $('share')]) el.hidden = true;
+  $('report-open').hidden = !state.raw;
   $('summary').textContent = '';
   $('warnings').replaceChildren();
   document.querySelector('.actions').hidden = false;
@@ -107,6 +152,7 @@ function render() {
   document.querySelector('.actions').hidden = false;
   $('download').hidden = false;
   $('read').hidden = false;
+  $('report-open').hidden = false;
   const r = report(book);
   $('summary').textContent = `${r.chapters} chapter${r.chapters === 1 ? '' : 's'} · ${r.paragraphs.toLocaleString()} paragraphs · ${r.words.toLocaleString()} words${r.notes ? ` · ${r.notes} notes` : ''}`;
   const warnings = [...book.warnings];
@@ -211,7 +257,10 @@ async function makeEpubFile() {
 }
 
 async function download() {
-  const file = await makeEpubFile();
+  saveFile(await makeEpubFile());
+}
+
+function saveFile(file) {
   const url = URL.createObjectURL(file);
   const a = Object.assign(document.createElement('a'), { href: url, download: file.name });
   document.body.append(a);
@@ -230,7 +279,8 @@ async function share() {
 }
 
 function reset() {
-  state.bytes = null; state.book = null;
+  state.bytes = null; state.book = null; state.raw = null;
+  $('report-box').hidden = true;
   $('file').value = '';
   $('result').hidden = true;
   showError('');
@@ -251,14 +301,24 @@ $('read').addEventListener('click', () => {
 $('download').addEventListener('click', () => withBusy($('download'), download));
 $('share').addEventListener('click', () => withBusy($('share'), share));
 $('again').addEventListener('click', reset);
-$('lang').addEventListener('change', async () => {
-  if (!state.bytes) return;
-  const keep = { title: $('title').value, author: $('author').value };
-  state.book = await convert($('lang').value);
-  setStatus('');
-  render();
-  $('title').value = keep.title; $('author').value = keep.author;
+$('lang').addEventListener('change', rebuild);
+$('headings').addEventListener('change', rebuild);
+$('faithful').checked = prefs.get('mr-faithful', false);
+$('faithful').addEventListener('change', () => { prefs.set('mr-faithful', $('faithful').checked); rebuild(); });
+$('report-open').addEventListener('click', () => {
+  $('report-box').hidden = !$('report-box').hidden;
+  if (!$('report-box').hidden) $('report-note').focus();
 });
+$('report-create').addEventListener('click', () => withBusy($('report-create'), async () => {
+  const zip = buildDiagnosticReport(state.raw, state.book ?? { scanned: !!state.raw?.scanned, chapters: [], warnings: [] }, {
+    bytes: state.bytes,
+    note: $('report-note').value.trim(),
+    version: APP_VERSION,
+    settings: { lang: $('lang').value, faithful: $('faithful').checked, headings: $('headings').value },
+  });
+  saveFile(new File([zip], `manuscript-problem-report-${today()}.zip`, { type: 'application/zip' }));
+  $('report-done').hidden = false;
+}));
 
 async function withBusy(btn, fn) {
   btn.disabled = true;

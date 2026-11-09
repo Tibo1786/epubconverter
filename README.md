@@ -67,6 +67,18 @@ Kobo: copy the EPUB to the e-reader over USB (or use Dropbox/Google Drive in the
 
 Send to Kindle keeps highlights and notes in the Kindle library, synced across devices.
 
+## When the result isn't right
+
+- **Chapters missing or wrong?** Use the **Chapter titles** menu. It lists the looks found in the manuscript, with how many chapters each gives and an example: a Word paragraph style, larger text, bold lines, CAPITALS, centred lines, lines starting with a number. When nothing is found automatically, the app already tries the most consistent of these and says so ("Automatic (found: bold lines)").
+- **Words changed?** Tick **Keep the text exactly as written**. This turns off the typographic clean-up (curly quotes, `--` → —, spacing around punctuation, French no-break spaces). A hyphen at the end of a PDF line is then kept unless the joined word appears elsewhere in the book.
+- **Still wrong? Send a problem report.** Tap *Something looks wrong? Send a privacy-safe problem report…*. The app makes a small `.zip` on the device in which every letter of the manuscript is replaced by `x` / `X`. What remains:
+  - the layout: fonts, sizes, positions, Word styles
+  - punctuation
+  - chapter words such as "Capítulo"
+  - very common words (de, la, the…), which are needed to reproduce language detection
+
+  For Word files it includes an anonymized copy of the .docx. You can open it to check before sending. The developer replays it with `node scripts/replay-report.mjs report.zip` and turns the problem into a permanent test.
+
 ## Tips for the best result
 
 - **Ask for the Word file whenever possible.** It contains the real structure (italics, chapters), while a PDF only contains positioned text.

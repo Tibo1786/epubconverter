@@ -1,7 +1,7 @@
 // Tiny stopword-based language identification for es / ca / en / fr.
 // Deterministic, dependency-free, good enough on a paragraph (>~100 chars).
 
-const LISTS = {
+export const LISTS = {
   es: 'el los las con por es pero muy esta este hasta también su sus fue era y del al lo le se que en un una no como más cuando donde porque ya sin sobre entre había estaba dijo pues aunque mientras hacia nada todo eso esto mi tu ella él usted',
   ca: 'els les amb per és però molt aquesta aquest fins també seva seu seus va i del al ho hi es que en un una no com més quan on perquè ja sense sobre entre havia estava dir doncs mentre cap res tot això allò meu teu ella ell vostè dels pels uns unes',
   en: 'the and of to in is was that it he she with for as his her on at by had not but they you from have this be are were which there their an or would what so if out about who them been when one all said could into than then',
