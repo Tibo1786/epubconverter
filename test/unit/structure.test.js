@@ -94,3 +94,20 @@ test('bookmarks replace chapter titles only when the text title lost letters', a
   assert.deepEqual(book.chapters.map((c) => c.title), ['Chapter One', 'Chapter Two']);
   assert.match(book.warnings.join(' '), /bookmarks/);
 });
+
+test('titles drawn with unmapped ligature glyphs are numbered, other text is untouched', () => {
+  // "Chapter one" drawn as [Ch][ap]t[er] [on]e: pdf.js gives private-use characters
+  const garbled = (rest) => `t ${rest}`;
+  const blocks = [P("Author's note", { heading: { level: 1, source: 'format' } }), P(long(0))];
+  for (const [k, rest] of ['e', 'two', 'three', 'fo'].entries()) {
+    blocks.push(P(garbled(rest), { heading: { level: 1, source: 'format' } }), P(long(k + 1)));
+  }
+  blocks.push(P('out the author', { heading: { level: 1, source: 'format' } }), P(long(9)));
+  const book = buildBook(blocks, { lang: 'en' });
+  assert.deepEqual(book.chapters.map((c) => c.title), ['Author’s note', 'Chapter 1', 'Chapter 2', 'Chapter 3', 'Chapter 4', 'out the author']);
+  assert.match(book.warnings.join(' '), /4 chapter titles could not be read/);
+  assert.match(book.warnings.join(' '), /incomplete .*“out the author”/);
+  assert.ok(!JSON.stringify(book).match(/[-]/), 'no private-use characters left');
+  // in Spanish books the word is Capítulo
+  assert.equal(buildBook(blocks, { lang: 'es' }).chapters[1].title, 'Capítulo 1');
+});

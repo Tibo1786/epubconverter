@@ -22,6 +22,9 @@ export function fixRunText(s, lang, faithful = false) {
   if (!faithful) s = s.replace(/---?/g, '—');
   // Soft hyphens and zero-width characters are layout hints, not text.
   s = s.replace(/[­​‌⁠﻿]/g, '');
+  // Private-use characters: glyphs a PDF did not map to any character
+  // (display-font ligatures). They cannot be shown, so they are dropped.
+  s = s.replace(/[\uE000-\uF8FF]/g, '');
   // Tabs and odd spaces become plain spaces (NBSP is kept: it is intentional).
   s = s.replace(/[\t - 　]/g, ' ');
   return s;

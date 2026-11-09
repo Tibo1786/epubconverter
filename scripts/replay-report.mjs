@@ -34,7 +34,7 @@ if (report.input.type === 'docx' && docx) {
   const pages = report.pdf.pages.map((p) => ({ n: p.n, width: p.w, height: p.h, items: p.items.map(([str, x, y, w, fs, b, i]) => ({ str, x, y, w, fs, bold: !!b, italic: !!i })) }));
   const r = reflow(pages, { faithful });
   blocks = r.blocks;
-  book = buildBook(r.blocks, { lang: opts.lang, langHint: report.pdf.meta?.langHint, outline: report.pdf.outline }, r.notes, opts);
+  book = buildBook(r.blocks, { lang: opts.lang, langHint: report.pdf.meta?.langHint, outline: report.pdf.outline, source: 'pdf' }, r.notes, opts);
   console.log('bookmarks:', (report.pdf.outline || []).length);
   console.log('layout stats:', JSON.stringify({ bodyFs: r.debug.stats.bodyFs, pitch: r.debug.stats.pitch, indent: r.debug.stats.indent, paraGap: r.debug.stats.paraGap }));
   console.log('removed as headers/footers:', [...new Set(r.debug.removed)].slice(0, 12));
