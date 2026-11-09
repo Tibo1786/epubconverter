@@ -2,9 +2,10 @@
 import { convertToBook, sniffType } from '../core/convert.js';
 import { buildEpub } from '../core/epub.js';
 import { report } from '../core/report.js';
+import { openReader, fileKey } from './reader.js';
 
 const $ = (id) => document.getElementById(id);
-const state = { bytes: null, name: '', book: null, busy: false };
+const state = { bytes: null, name: '', book: null, busy: false, key: null };
 
 let pdfjsPromise = null;
 function loadPdfjs() {
@@ -60,6 +61,7 @@ async function handleFile(file) {
   state.name = file.name;
   try {
     state.bytes = new Uint8Array(await file.arrayBuffer());
+    state.key = await fileKey(state.bytes);
     const book = await convert();
     if (book.scanned) {
       showOnlyMessage(book.warnings[0]);
@@ -72,6 +74,7 @@ async function handleFile(file) {
     if (!$('received').value) $('received').value = today();
     render();
     setStatus('');
+    $('result').scrollIntoView({ behavior: 'smooth', block: 'start' });
   } catch (e) {
     console.error(e);
     showOnlyMessage(e.message || String(e));
@@ -84,7 +87,7 @@ async function handleFile(file) {
 function showOnlyMessage(msg) {
   setStatus('');
   $('result').hidden = false;
-  for (const el of [$('meta'), $('toc-box'), document.querySelector('.preview'), $('download'), $('share')]) el.hidden = true;
+  for (const el of [$('meta'), $('toc-box'), document.querySelector('.preview'), $('read'), $('download'), $('share')]) el.hidden = true;
   $('summary').textContent = '';
   $('warnings').replaceChildren();
   document.querySelector('.actions').hidden = false;
@@ -103,6 +106,7 @@ function render() {
   document.querySelector('.preview').hidden = false;
   document.querySelector('.actions').hidden = false;
   $('download').hidden = false;
+  $('read').hidden = false;
   const r = report(book);
   $('summary').textContent = `${r.chapters} chapter${r.chapters === 1 ? '' : 's'} · ${r.paragraphs.toLocaleString()} paragraphs · ${r.words.toLocaleString()} words${r.notes ? ` · ${r.notes} notes` : ''}`;
   const warnings = [...book.warnings];
@@ -240,6 +244,10 @@ const drop = $('drop');
 for (const ev of ['dragenter', 'dragover']) drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('over'); });
 for (const ev of ['dragleave', 'drop']) drop.addEventListener(ev, () => drop.classList.remove('over'));
 drop.addEventListener('drop', (e) => { e.preventDefault(); handleFile(e.dataTransfer.files[0]); });
+$('read').addEventListener('click', () => {
+  const book = { ...state.book, meta: { ...state.book.meta, lang: $('lang').value } };
+  openReader(book, { title: $('title').value.trim() || book.meta.title, author: $('author').value.trim(), key: state.key });
+});
 $('download').addEventListener('click', () => withBusy($('download'), download));
 $('share').addEventListener('click', () => withBusy($('share'), share));
 $('again').addEventListener('click', reset);
@@ -256,6 +264,9 @@ async function withBusy(btn, fn) {
   btn.disabled = true;
   try { await fn(); } catch (e) { showError(e.message || String(e)); } finally { btn.disabled = false; }
 }
+
+// A #read left in the address bar (reload while reading) has no book behind it.
+if (location.hash === '#read') history.replaceState(null, '', location.pathname);
 
 const secure = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
 if ('serviceWorker' in navigator && secure) {

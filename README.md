@@ -29,6 +29,12 @@ Built for a small publishing house that receives unpublished submissions from au
   - ligatures and soft hyphens cleaned up
 - **Language**: detected automatically (es / ca / en / fr) and set in the EPUB. A chapter or paragraph in another language is tagged separately, so e-reader dictionaries and hyphenation work. You can override it.
 - **Output**: a valid EPUB 3, checked with epubcheck, plus an EPUB 2 table of contents for older readers. It has a simple cover and a title page with title, author and an optional *"Confidential submission, received 9 November 2026"* line. Title, author, language and date can be edited before downloading.
+- **Read it right here**: an in-browser reader for phones and computers.
+  - *Pages* layout: tap the page edges, swipe or use the arrow keys. Wide screens show two pages side by side.
+  - *Scroll* layout.
+  - Contents menu and pop-up footnotes.
+  - Text size, Light/Sepia/Dark theme, serif or sans font, line spacing, justification.
+  - Reopening the same file resumes where you stopped. Only the chapter and paragraph number are remembered (keyed by a hash of the file), never the text.
 - **On phones**: installable from the browser menu ("Add to Home Screen") and works offline. A **Send to Kindle app…** button shares the EPUB straight to the Kindle app.
 
 ## Privacy
@@ -45,6 +51,7 @@ Manuscripts are confidential, so **nothing is ever uploaded.** The conversion ru
 - **Honest caveats:**
   - The service worker and the pdf.js worker are separate scripts. Browsers don't apply the page's CSP to them, because GitHub Pages can't send HTTP headers. Both are short, open source, and only ever fetch this site's own files. The tests watch their traffic too.
   - When you use **Send to Kindle** (app, email or website), Amazon receives a copy and keeps it in your Kindle library. For the strictest confidentiality, copy the EPUB to the Kindle over USB with Calibre.
+- The **in-browser reader** renders the book from memory. Manuscript text is inserted as plain text (never as HTML), so a file can't inject code. The only things saved on the device (`localStorage`) are display settings and reading positions. The manuscript itself is never stored: to read it again, open the file again.
 - The repository contains **no manuscripts**, only synthetic test texts written for this project.
 
 ## Getting the EPUB onto a Kindle

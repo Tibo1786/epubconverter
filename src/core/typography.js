@@ -156,3 +156,24 @@ export function mergeRuns(runs) {
 export function runsText(runs) {
   return runs.map((r) => (r.t !== undefined ? r.t : r.br ? ' ' : '')).join('');
 }
+
+/**
+ * Split text so that words glued to a dialogue dash ("—¿Eres", "Remei—.",
+ * "—dijo") can be rendered unbreakable. Browsers and e-readers otherwise
+ * allow a line break between a word and an em dash, which leaves a dash
+ * orphaned at the start or end of a line.
+ * @returns {Array<[string, boolean]>} [text, nowrap] segments
+ */
+export function dashSegments(text) {
+  if (!text.includes('—')) return [[text, false]];
+  const out = [];
+  let last = 0;
+  const re = /(?<=^|\s)(?:—[^\s—]+|[^\s—]+—[.,;:!?…»”’)]*)(?=\s|$)/gu;
+  for (const m of text.matchAll(re)) {
+    if (m.index > last) out.push([text.slice(last, m.index), false]);
+    out.push([m[0], true]);
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) out.push([text.slice(last), false]);
+  return out;
+}

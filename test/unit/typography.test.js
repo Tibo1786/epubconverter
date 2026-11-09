@@ -45,3 +45,12 @@ test('quotes are curled across run boundaries', () => {
   const runs = normalizeRuns([{ t: 'He wrote "' }, { t: 'Forecasts', i: true }, { t: '" on it' }], 'en');
   assert.equal(runsText(runs), 'He wrote “Forecasts” on it');
 });
+
+test('dialogue dashes stay glued to their words', async () => {
+  const { dashSegments } = await import('../../src/core/typography.js');
+  const nw = (s) => dashSegments(s).filter(([, n]) => n).map(([t]) => t);
+  assert.deepEqual(nw('—Tu abuelo los coleccionaba —dijo Remei—. Yo me limito'), ['—Tu', '—dijo', 'Remei—.']);
+  assert.deepEqual(nw('—¿Eres Clara? —preguntó, sin acercarse.'), ['—¿Eres', '—preguntó,']);
+  assert.deepEqual(nw('the wind — which'), []);
+  assert.equal(dashSegments('sin rayas').length, 1);
+});
