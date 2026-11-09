@@ -42,6 +42,7 @@ bytes ─► reader ─► raw blocks ─► structure.buildBook ─► book ─
 - `src/core/dehyphen.js`: the line-end hyphen decision (soft hyphen, Catalan l·l, document evidence, upper case).
 - `src/core/lang.js`: stopword classifier for es/ca/en/fr.
 - `src/core/epub.js`: EPUB 3 plus NCX, one XHTML per chapter, footnotes as `aside epub:type="footnote"`, optional cover. The zip comes from fflate with `mimetype` first and stored.
+- `src/ui/reader.js`: the in-browser reader. Pages mode paginates with CSS columns (one or two columns per screen) and turns pages with `scrollLeft`; scroll mode is plain vertical scrolling. One chapter is rendered at a time, with DOM text nodes only (never `innerHTML`). The position (`{c, b}` = chapter and block index) and settings live in `localStorage`, never the text. Words glued to dialogue dashes are wrapped in no-wrap spans (`dashSegments` in typography.js), in the EPUB too.
 - `src/ui/app.js`: the UI. It lazy-loads pdf.js, builds the cover on a canvas, and handles download, Web Share and the service worker.
 
 The run model is `{t, i?, b?, sup?}`, `{note: id}` (becoming `{note, n}` after numbering), or `{br: true}`.
@@ -51,7 +52,7 @@ The run model is `{t, i?, b?, sup?}`, `{note: id}` (becoming `{note, n}` after n
 | Command | What |
 |---|---|
 | `npm test` | Node test runner: `test/unit/*.test.js` plus `test/quality.test.js` |
-| `npm run test:e2e` | Playwright, desktop and Pixel 7. Converts every fixture in Chromium, saves the EPUBs to `out/e2e/`, asserts no network traffic, the CSP, offline mode and the phone layout. Locally with a preinstalled Chromium: `PW_CHROMIUM=/path/to/chrome npm run test:e2e` |
+| `npm run test:e2e` | Playwright, desktop and Pixel 7. Converts every fixture in Chromium, saves the EPUBs to `out/e2e/`, asserts no network traffic, the CSP, offline mode and the phone layout. `reader.spec.js` covers the reader: paging, contents, notes, back button, resume, settings, no network, no stored text, markup injection, both layouts. Locally with a preinstalled Chromium: `PW_CHROMIUM=/path/to/chrome npm run test:e2e` |
 | `npm run epubcheck` / `bash scripts/epubcheck.sh files…` | epubcheck 5.4.0 (downloaded to `.cache/`, SHA-256 pinned), with warnings counted as failures |
 | `npm run try -- file…` | Convert local files and print a quality report (`src/core/report.js`) |
 | `npm run fixtures` | Regenerate `test/fixtures/` (needs python-docx, reportlab, LibreOffice, poppler) |

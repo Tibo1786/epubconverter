@@ -1,7 +1,7 @@
 // Service worker: makes the app work offline and installable.
 // It only ever fetches this site's own files; it never sees your manuscript
 // (files are read with the File API, not over the network).
-const VERSION = 'v2';
+const VERSION = 'v3';
 const CACHE = `manuscript-reader-${VERSION}`;
 const ASSETS = [
   './',
@@ -13,6 +13,7 @@ const ASSETS = [
   'icons/icon-512.png',
   'icons/icon-180.png',
   'src/ui/app.js',
+  'src/ui/reader.js',
   'src/core/convert.js',
   'src/core/docx.js',
   'src/core/xml.js',

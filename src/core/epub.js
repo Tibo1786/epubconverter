@@ -2,6 +2,7 @@
 // Output passes epubcheck and is accepted by Send to Kindle, Kobo and Apple Books.
 
 import { zipSync, strToU8 } from '../../vendor/fflate/fflate.mjs';
+import { dashSegments } from './typography.js';
 
 export const esc = (s) => String(s)
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
@@ -29,7 +30,7 @@ function runsHtml(runs, chapterFile) {
       continue;
     }
     if (r.t === undefined) continue;
-    let t = esc(r.t);
+    let t = dashSegments(r.t).map(([x, nw]) => (nw ? `<span class="nw">${esc(x)}</span>` : esc(x))).join('');
     if (r.sup) t = `<sup>${t}</sup>`;
     if (r.b) t = `<b>${t}</b>`;
     if (r.i) t = `<i>${t}</i>`;
@@ -46,6 +47,7 @@ h2 { font-size: 1.25em; }
 p { margin: 0; text-indent: 1.3em; line-height: 1.4; orphans: 2; widows: 2; hyphens: auto; -webkit-hyphens: auto; -epub-hyphens: auto; }
 h1 + p, h2 + p, p.first, .scene + p { text-indent: 0; }
 p.scene { text-indent: 0; text-align: center; margin: 1em 0; }
+.nw { white-space: nowrap; }
 a.noteref { font-size: 0.75em; vertical-align: super; line-height: 0; text-decoration: none; }
 section.notes { margin-top: 2em; font-size: 0.9em; }
 section.notes hr { width: 30%; margin: 0 0 1em 0; }
